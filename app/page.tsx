@@ -48,6 +48,10 @@ type ViewKey = "overview" | "narratives" | "coverage" | "sentiment" | "creators"
 type PeriodKey = "week" | "all";
 type CoverageFilter = "all" | Sentiment | "official" | "news" | "youtube" | "reddit" | "x" | "trends";
 
+const COVERAGE_DISPLAY_LIMIT = 35;
+const EVIDENCE_DISPLAY_LIMIT = 12;
+const NARRATIVE_DISPLAY_LIMIT = 5;
+
 type NarrativeInsight = {
   id: string;
   title: string;
@@ -291,6 +295,18 @@ export default function Page() {
       return item.sourceKind === coverageFilter;
     });
   }, [coverageFilter, scopedItems]);
+
+  const displayedCoverage = useMemo(() => {
+    return [...filteredCoverage]
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .slice(0, COVERAGE_DISPLAY_LIMIT);
+  }, [filteredCoverage]);
+
+  const displayedEvidence = useMemo(() => {
+    return [...scopedItems]
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .slice(0, EVIDENCE_DISPLAY_LIMIT);
+  }, [scopedItems]);
 
   const platformData = useMemo(() => {
     const labels = ["official", "news", "trends", "youtube", "reddit", "x"] as const;
@@ -543,7 +559,7 @@ export default function Page() {
                 <div className="panel">
                   <h3>Leitura da IA</h3>
                   <div className="list">
-                    {narrativeInsights.length ? narrativeInsights.map((insight) => (
+                    {narrativeInsights.length ? narrativeInsights.slice(0, NARRATIVE_DISPLAY_LIMIT).map((insight) => (
                       <div className="insight-row" key={insight.id}>
                         <div className="meta"><span className={`pill ${sentimentClass(insight.sentiment)}`}>{sentimentLabel(insight.sentiment)}</span><span className="pill nos">Opp {insight.opportunityScore}</span><span className="pill neg">Risk {insight.riskScore}</span></div>
                         <b>{insight.title}</b>
@@ -569,11 +585,12 @@ export default function Page() {
 
               <div className="section-subhead">
                 <span className="eyebrow">Evidências</span>
-                <h3>Itens que sustentam o resumo</h3>
+                <h3>Top {Math.min(scopedItems.length, EVIDENCE_DISPLAY_LIMIT)} itens que sustentam o resumo</h3>
+                <p>Filtramos o excesso e mostramos só os sinais mais relevantes da janela. Total disponível: {scopedItems.length}.</p>
               </div>
 
               <div className="cards">
-                {scopedItems.length ? scopedItems.map((item) => (
+                {displayedEvidence.length ? displayedEvidence.map((item) => (
                   <a className="card link-card" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer">
                     <h4>{item.title}</h4>
                     <div className="meta">
@@ -597,8 +614,11 @@ export default function Page() {
                   <button key={filter} className={`chip ${coverageFilter === filter ? "on" : ""}`} onClick={() => setCoverageFilter(filter)}>{filter}</button>
                 ))}
               </div>
+              <div className="coverage-toolbar">
+                <span>Mostrando top {displayedCoverage.length} de {filteredCoverage.length} fonte(s) filtradas por relevância.</span>
+              </div>
               <div className="coverage list">
-                {filteredCoverage.length ? filteredCoverage.map((item) => (
+                {displayedCoverage.length ? displayedCoverage.map((item) => (
                   <a className="row coverage-row" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer">
                     <span className="time">{item.publishedAt.slice(0, 10)}</span>
                     <span className="outlet">{item.source}</span>
