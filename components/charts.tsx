@@ -1,0 +1,7 @@
+"use client";
+import { IntelligenceSnapshot } from "@/lib/types";
+import { Card, Pill } from "@/components/ui";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+export function Charts({ s }: { s: IntelligenceSnapshot }) {
+  return <section id="trends" className="grid gap-4 lg:grid-cols-5"><Card className="lg:col-span-3"><Pill>Fandom Heat</Pill><h3 className="mt-3 text-xl font-bold">Buzz semanal</h3><ResponsiveContainer width="100%" height={280}><AreaChart data={s.weeks}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.1)"/><XAxis dataKey="weekId" stroke="#f7eedb99"/><YAxis stroke="#f7eedb99"/><Tooltip contentStyle={{background:'#11100d',border:'1px solid #d4af3744',color:'#f7eedb'}}/><Area type="monotone" dataKey="buzzScore" stroke="#D4AF37" fill="#D4AF3740"/></AreaChart></ResponsiveContainer></Card><Card className="lg:col-span-2"><Pill>Risk x Opportunity</Pill><h3 className="mt-3 text-xl font-bold">Leitura por semana</h3><ResponsiveContainer width="100%" height={280}><BarChart data={s.weeks.slice(-10)}><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.1)"/><XAxis dataKey="weekId" stroke="#f7eedb99"/><YAxis stroke="#f7eedb99"/><Tooltip contentStyle={{background:'#11100d',border:'1px solid #d4af3744',color:'#f7eedb'}}/><Bar dataKey="riskScore" fill="#EF4444"/><Bar dataKey="opportunityScore" fill="#D4AF37"/></BarChart></ResponsiveContainer></Card></section>;
+}

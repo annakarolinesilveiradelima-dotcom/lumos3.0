@@ -1,0 +1,5 @@
+import { Download, WandSparkles } from "lucide-react";
+import { Button } from "@/components/ui";
+export function Header({ loading, onUpdate, onExport }: { loading: boolean; onUpdate: () => void; onExport: (t: "csv" | "pdf" | "ppt") => void }) {
+  return <header className="sticky top-0 z-20 border-b border-white/10 bg-[#090806]/80 px-4 py-4 backdrop-blur lg:px-8"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><p className="text-xs uppercase tracking-[.35em] text-gold/65">Lumos Intelligence Command Center</p><h2 className="text-2xl font-bold text-parchment">Weekly Archive desde o teaser</h2></div><div className="flex flex-wrap gap-2"><Button onClick={onUpdate} disabled={loading} className="flex items-center gap-2"><WandSparkles size={17}/>{loading ? "Updating..." : "⚡ Update Intelligence"}</Button>{(["csv", "pdf", "ppt"] as const).map((t) => <button key={t} onClick={() => onExport(t)} className="rounded-2xl border border-gold/25 px-4 py-2 text-sm text-parchment hover:bg-gold/10"><Download size={15} className="mr-2 inline"/>Export {t.toUpperCase()}</button>)}</div></div></header>;
+}
