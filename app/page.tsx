@@ -111,7 +111,15 @@ export default function Page() {
   }, [snapshot, selectedWeek]);
 
   const scopedItems = useMemo(() => {
-    if (period === "all") return snapshot.items;
+    const selectedNumber = Number(selectedWeek.replace("W", ""));
+
+    if (period === "all") {
+      return snapshot.items.filter((item) => {
+        const itemNumber = Number(item.weekId.replace("W", ""));
+        return itemNumber <= selectedNumber;
+      });
+    }
+
     return snapshot.items.filter((item) => item.weekId === selectedWeek);
   }, [snapshot.items, selectedWeek, period]);
 
