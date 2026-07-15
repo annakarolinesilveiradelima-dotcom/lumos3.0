@@ -81,12 +81,35 @@ function cleanUrl(url: string) {
 }
 
 function sourceLabel(item: IntelligenceItem) {
-  if (item.sourceKind === "official") return "Oficial";
+  if (item.sourceKind === "official") return "Fonte oficial";
+  if (item.sourceKind === "news") return "Matéria / imprensa";
+  if (item.sourceKind === "google") return "Busca de investigação";
   if (item.sourceKind === "youtube") return "YouTube";
   if (item.sourceKind === "reddit") return "Reddit";
   if (item.sourceKind === "trends") return "Google Trends";
-  if (item.sourceKind === "x") return "X";
-  return "Imprensa";
+  if (item.sourceKind === "x") return "X / Social";
+  return "Fonte";
+}
+
+function actionLabel(item: IntelligenceItem) {
+  if (item.sourceKind === "official") return "Abrir fonte oficial";
+  if (item.sourceKind === "news") return isSearchBackfill(item) ? "Buscar matérias da semana" : "Abrir matéria";
+  if (item.sourceKind === "google") return "Buscar matérias da semana";
+  if (item.sourceKind === "youtube") return "Ver vídeos";
+  if (item.sourceKind === "reddit") return "Ver discussão";
+  if (item.sourceKind === "trends") return "Abrir Trends";
+  if (item.sourceKind === "x") return "Ver conversa";
+  return "Abrir fonte";
+}
+
+function isSearchBackfill(item: IntelligenceItem) {
+  return (
+    item.sourceKind === "google" ||
+    item.url.includes("news.google.com/search") ||
+    item.url.includes("google.com/search") ||
+    item.title.toLowerCase().includes("monitoramento semanal") ||
+    item.title.toLowerCase().includes("busca aberta")
+  );
 }
 
 export default function Page() {
@@ -386,9 +409,18 @@ export default function Page() {
                   <a className="row coverage-row" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer">
                     <span className="time">{item.publishedAt.slice(0, 10)}</span>
                     <span className="outlet">{item.source}</span>
-                    <span><b>{item.title}</b><small>{sourceLabel(item)} · {item.summary}</small></span>
+                    <span>
+                      <b>{item.title}</b>
+                      <small>
+                        {sourceLabel(item)} · {item.summary}
+                        {isSearchBackfill(item) ? " · Atalho de busca, não matéria individual." : ""}
+                      </small>
+                    </span>
                     <span className={`pill ${sentimentClass(item.sentiment)}`}>{sentimentLabel(item.sentiment)}</span>
-                    <ExternalLink size={16} />
+                    <span className="open-label">
+                      {actionLabel(item)}
+                      <ExternalLink size={14} />
+                    </span>
                   </a>
                 )) : <div className="empty">Sem cobertura nessa janela.</div>}
               </div>
