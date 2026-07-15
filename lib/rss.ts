@@ -301,7 +301,6 @@ export async function fetchGoogleNews(
   const allQueries = [...CORE_QUERIES, ...siteQueries];
 
   const batches: IntelligenceItem[][] = [];
-
   const concurrency = 5;
 
   for (let i = 0; i < allQueries.length; i += concurrency) {
