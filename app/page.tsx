@@ -43,6 +43,9 @@ const initialSnapshot = buildSnapshot(
   new Date().toISOString().slice(0, 10)
 );
 
+const CACHE_KEY = "lumos.v5.live-news.snapshot";
+const LAST_RUN_KEY = "lumos.v5.live-news.lastRun";
+
 type ViewKey = "overview" | "narratives" | "coverage" | "sentiment" | "creators" | "risks" | "opps" | "assistant";
 type PeriodKey = "week" | "all";
 type CoverageFilter = "all" | Sentiment | "official" | "news" | "youtube" | "reddit" | "x" | "trends";
@@ -120,12 +123,15 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("lumos.v3.template.snapshot");
+    const saved = localStorage.getItem(CACHE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as IntelligenceSnapshot;
       setSnapshot(parsed);
       setSelectedWeek(parsed.currentWeekId);
+      return;
     }
+
+    void updateIntelligence();
   }, []);
 
   const currentWeek = useMemo(() => {
@@ -232,7 +238,7 @@ export default function Page() {
   async function updateIntelligence() {
     setLoading(true);
     try {
-      const lastRun = localStorage.getItem("lumos.v3.template.lastRun") || undefined;
+      const lastRun = localStorage.getItem(LAST_RUN_KEY) || undefined;
       const res = await fetch("/api/intelligence/update", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -242,9 +248,9 @@ export default function Page() {
       const data = (await res.json()) as IntelligenceSnapshot;
       setSnapshot(data);
       setSelectedWeek(data.currentWeekId);
-      localStorage.setItem("lumos.v3.template.snapshot", JSON.stringify(data));
-      localStorage.setItem("lumos.v3.template.lastRun", new Date().toISOString().slice(0, 10));
-      toast.success("Feed atualizado e links de matérias preservados.");
+      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      localStorage.setItem(LAST_RUN_KEY, new Date().toISOString().slice(0, 10));
+      toast.success("Feed atualizado com mais matérias reais e fontes usadas pela IA.");
     } catch {
       toast.error("Não consegui atualizar agora. Mantive o arquivo local.");
     } finally {
