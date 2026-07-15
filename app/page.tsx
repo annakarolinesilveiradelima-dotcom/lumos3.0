@@ -17,10 +17,8 @@ import {
   YAxis
 } from "recharts";
 import {
-  Archive,
   BarChart3,
   Bot,
-  CalendarDays,
   Download,
   ExternalLink,
   FileWarning,
@@ -43,12 +41,24 @@ const initialSnapshot = buildSnapshot(
   new Date().toISOString().slice(0, 10)
 );
 
-const CACHE_KEY = "lumos.v5.live-news.snapshot";
-const LAST_RUN_KEY = "lumos.v5.live-news.lastRun";
+const CACHE_KEY = "lumos.v6.executive-narratives.snapshot";
+const LAST_RUN_KEY = "lumos.v6.executive-narratives.lastRun";
 
 type ViewKey = "overview" | "narratives" | "coverage" | "sentiment" | "creators" | "risks" | "opps" | "assistant";
 type PeriodKey = "week" | "all";
 type CoverageFilter = "all" | Sentiment | "official" | "news" | "youtube" | "reddit" | "x" | "trends";
+
+type NarrativeInsight = {
+  id: string;
+  title: string;
+  summary: string;
+  whyItMatters: string;
+  sourceNames: string[];
+  evidence: IntelligenceItem[];
+  sentiment: Sentiment;
+  riskScore: number;
+  opportunityScore: number;
+};
 
 const navItems: { key: ViewKey; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Visão geral", icon: BarChart3 },
@@ -64,6 +74,11 @@ const navItems: { key: ViewKey; label: string; icon: React.ElementType }[] = [
 function pct(part: number, total: number) {
   if (!total) return 0;
   return Math.round((part / total) * 100);
+}
+
+function average(items: IntelligenceItem[], field: "riskScore" | "opportunityScore" | "reach") {
+  if (!items.length) return 0;
+  return Math.round(items.reduce((sum, item) => sum + item[field], 0) / items.length);
 }
 
 function sentimentLabel(value: Sentiment) {
@@ -83,27 +98,6 @@ function cleanUrl(url: string) {
   return url;
 }
 
-function sourceLabel(item: IntelligenceItem) {
-  if (item.sourceKind === "official") return "Fonte oficial";
-  if (item.sourceKind === "news") return "Matéria / imprensa";
-  if (item.sourceKind === "google") return "Busca de investigação";
-  if (item.sourceKind === "youtube") return "YouTube";
-  if (item.sourceKind === "reddit") return "Reddit";
-  if (item.sourceKind === "trends") return "Google Trends";
-  if (item.sourceKind === "x") return "X / Social";
-  return "Fonte";
-}
-
-function actionLabel(item: IntelligenceItem) {
-  if (item.sourceKind === "official") return "Abrir fonte oficial";
-  if (item.sourceKind === "news") return "Abrir matéria";
-  if (item.sourceKind === "youtube") return "Ver vídeos";
-  if (item.sourceKind === "reddit") return "Ver discussão";
-  if (item.sourceKind === "trends") return "Abrir Trends";
-  if (item.sourceKind === "x") return "Ver conversa";
-  return "Abrir fonte";
-}
-
 function isSearchBackfill(item: IntelligenceItem) {
   return (
     item.sourceKind === "google" ||
@@ -114,6 +108,124 @@ function isSearchBackfill(item: IntelligenceItem) {
   );
 }
 
+function sourceLabel(item: IntelligenceItem) {
+  if (item.sourceKind === "official") return "Fonte oficial";
+  if (item.sourceKind === "news") return isSearchBackfill(item) ? "Fonte de descoberta" : "Matéria / imprensa";
+  if (item.sourceKind === "youtube") return "YouTube";
+  if (item.sourceKind === "reddit") return "Reddit";
+  if (item.sourceKind === "trends") return "Google Trends";
+  if (item.sourceKind === "x") return "X / Social";
+  return "Fonte";
+}
+
+function actionLabel(item: IntelligenceItem) {
+  if (item.sourceKind === "official") return "Abrir fonte oficial";
+  if (item.sourceKind === "news") return isSearchBackfill(item) ? "Abrir fonte de descoberta" : "Abrir matéria";
+  if (item.sourceKind === "youtube") return "Ver vídeos";
+  if (item.sourceKind === "reddit") return "Ver discussão";
+  if (item.sourceKind === "trends") return "Abrir Trends";
+  if (item.sourceKind === "x") return "Ver conversa";
+  return "Abrir fonte";
+}
+
+function hasTag(item: IntelligenceItem, tags: string[]) {
+  const field = `${item.title} ${item.summary} ${item.tags.join(" ")}`.toLowerCase();
+  return tags.some((tag) => field.includes(tag.toLowerCase()));
+}
+
+function sourceNames(items: IntelligenceItem[]) {
+  return [...new Set(items.map((item) => item.source).filter(Boolean))].slice(0, 4);
+}
+
+function chooseSentiment(items: IntelligenceItem[]): Sentiment {
+  const neg = items.filter((item) => item.sentiment === "negative").length;
+  const pos = items.filter((item) => item.sentiment === "positive").length;
+  if (neg > pos) return "negative";
+  if (pos > 0) return "positive";
+  return "neutral";
+}
+
+function makeInsight(
+  id: string,
+  title: string,
+  summary: string,
+  whyItMatters: string,
+  evidence: IntelligenceItem[]
+): NarrativeInsight | null {
+  const validEvidence = evidence
+    .filter((item) => !isSearchBackfill(item))
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, 6);
+
+  if (!validEvidence.length) return null;
+
+  return {
+    id,
+    title,
+    summary,
+    whyItMatters,
+    sourceNames: sourceNames(validEvidence),
+    evidence: validEvidence,
+    sentiment: chooseSentiment(validEvidence),
+    riskScore: average(validEvidence, "riskScore"),
+    opportunityScore: average(validEvidence, "opportunityScore")
+  };
+}
+
+function buildNarrativeInsights(items: IntelligenceItem[]): NarrativeInsight[] {
+  const cleanItems = items.filter((item) => !isSearchBackfill(item));
+
+  const groups = [
+    makeInsight(
+      "nostalgia-official",
+      "Nostalgia e fontes oficiais sustentam o interesse",
+      "A IA encontrou sinais de que a conversa sobre Harry Potter continua apoiada no teaser, em assets oficiais e na memória afetiva da franquia.",
+      "Esse eixo é o mais seguro para social, CRM e PR porque reforça familiaridade antes do próximo grande asset.",
+      cleanItems.filter((item) => hasTag(item, ["teaser", "official", "nostalgia", "hbo", "launch", "release"]))
+    ),
+    makeInsight(
+      "fandom-adaptation",
+      "Fandom monitora fidelidade, elenco e adaptação",
+      "A IA identificou que conversas sobre elenco, caracterização e fidelidade aos livros aparecem como temas recorrentes de atenção.",
+      "Esses temas precisam de mensagens claras, porque podem virar dúvidas ou críticas rapidamente se não forem contextualizados.",
+      cleanItems.filter((item) => hasTag(item, ["casting", "adaptation", "fandom", "elenco", "livros", "cast"]))
+    ),
+    makeInsight(
+      "film-comparison-risk",
+      "Comparação com os filmes segue como principal risco",
+      "A IA encontrou sinais de comparação direta entre a nova série e o legado cinematográfico, principalmente em conversas de fandom e social.",
+      "A comunicação precisa explicar o valor do formato longo sem competir diretamente com a memória afetiva dos filmes.",
+      cleanItems.filter((item) => item.sentiment === "negative" || hasTag(item, ["comparison", "filmes", "risk", "crítica", "x"]))
+    ),
+    makeInsight(
+      "creator-education",
+      "Creators podem transformar dúvidas em contexto positivo",
+      "A IA identificou oportunidade para creators e vídeos explicadores, especialmente para diferenciar série, livros e filmes.",
+      "Esse caminho ajuda a manter buzz entre assets oficiais e reduz ruído em temas sensíveis.",
+      cleanItems.filter((item) => item.sourceKind === "youtube" || hasTag(item, ["creators", "youtube", "education", "explicadores"]))
+    ),
+    makeInsight(
+      "br-market-press",
+      "Fontes brasileiras ajudam a manter a conversa ativa",
+      "A IA encontrou cobertura e sinais em português que indicam espaço para guias, retrospectivas e pauta editorial local.",
+      "O mercado brasileiro pode sustentar awareness com conteúdo always-on enquanto não há novo trailer ou anúncio maior.",
+      cleanItems.filter((item) => item.region === "BR" || hasTag(item, ["brasil", "press", "editorial", "imprensa", "guias"]))
+    )
+  ].filter(Boolean) as NarrativeInsight[];
+
+  if (groups.length) return groups;
+
+  const fallback = makeInsight(
+    "weekly-readout",
+    "A IA consolidou os sinais disponíveis da semana",
+    "Não há volume suficiente para clusterizar narrativas, mas os sinais encontrados foram consolidados na leitura executiva.",
+    "A recomendação é recarregar o feed e acompanhar fontes oficiais, imprensa e social listening.",
+    cleanItems
+  );
+
+  return fallback ? [fallback] : [];
+}
+
 export default function Page() {
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot>(initialSnapshot);
   const [selectedWeek, setSelectedWeek] = useState(initialSnapshot.currentWeekId);
@@ -121,6 +233,7 @@ export default function Page() {
   const [period, setPeriod] = useState<PeriodKey>("week");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
   const [loading, setLoading] = useState(false);
+  const [lastUpdateMessage, setLastUpdateMessage] = useState("Aguardando atualização do feed.");
 
   useEffect(() => {
     const saved = localStorage.getItem(CACHE_KEY);
@@ -150,6 +263,27 @@ export default function Page() {
     return windowItems.filter((item) => !isSearchBackfill(item));
   }, [snapshot.items, selectedWeek, period]);
 
+  const narrativeInsights = useMemo(() => buildNarrativeInsights(scopedItems), [scopedItems]);
+
+  const weeklyNarrativeSummary = useMemo(() => {
+    const positive = scopedItems.filter((item) => item.sentiment === "positive").length;
+    const neutral = scopedItems.filter((item) => item.sentiment === "neutral").length;
+    const negative = scopedItems.filter((item) => item.sentiment === "negative").length;
+    const sources = [...new Set(scopedItems.map((item) => item.source))];
+    const topSources = sources
+      .map((source) => ({ source, count: scopedItems.filter((item) => item.source === source).length }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+    const topInsight = narrativeInsights[0];
+    const topEvidence = topInsight?.evidence[0] || scopedItems[0];
+
+    const summary = scopedItems.length
+      ? `Nesta janela, a IA analisou ${scopedItems.length} fonte(s)/sinal(is) sobre Harry Potter. A leitura principal é: ${topInsight?.summary || topEvidence?.summary || currentWeek?.keyNarrative}`
+      : "Nesta semana, a IA ainda não encontrou fontes reais suficientes para gerar um resumo robusto. Clique em Recarregar feed para buscar novas matérias e sinais.";
+
+    return { positive, neutral, negative, sources, topSources, topInsight, topEvidence, summary };
+  }, [scopedItems, narrativeInsights, currentWeek]);
+
   const filteredCoverage = useMemo(() => {
     return scopedItems.filter((item) => {
       if (coverageFilter === "all") return true;
@@ -177,53 +311,9 @@ export default function Page() {
     ];
   }, [scopedItems]);
 
-  const topNarratives = useMemo(() => {
-    const byTag = new Map<string, IntelligenceItem[]>();
-    scopedItems.forEach((item) => {
-      item.tags.forEach((tag) => byTag.set(tag, [...(byTag.get(tag) || []), item]));
-    });
-    return [...byTag.entries()]
-      .map(([tag, items]) => ({ tag, items, top: items.sort((a, b) => b.relevanceScore - a.relevanceScore)[0] }))
-      .sort((a, b) => b.items.length - a.items.length)
-      .slice(0, 6);
-  }, [scopedItems]);
-
-  const weeklyNarrativeSummary = useMemo(() => {
-    const sources = [...new Set(scopedItems.map((item) => item.source))];
-    const positive = scopedItems.filter((item) => item.sentiment === "positive").length;
-    const neutral = scopedItems.filter((item) => item.sentiment === "neutral").length;
-    const negative = scopedItems.filter((item) => item.sentiment === "negative").length;
-    const topSources = sources
-      .map((source) => ({
-        source,
-        count: scopedItems.filter((item) => item.source === source).length
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-    const topTopics = topNarratives.slice(0, 5).map((narrative) => narrative.tag);
-    const mostRelevant = [...scopedItems].sort((a, b) => b.relevanceScore - a.relevanceScore)[0];
-    const mainRisk = [...scopedItems].sort((a, b) => b.riskScore - a.riskScore)[0];
-    const mainOpportunity = [...scopedItems].sort((a, b) => b.opportunityScore - a.opportunityScore)[0];
-
-    const summary = scopedItems.length
-      ? `Nesta semana, a IA consolidou ${scopedItems.length} sinais sobre Harry Potter a partir de ${sources.length} fonte(s). A leitura principal é que ${mostRelevant?.summary || currentWeek?.keyNarrative || "a conversa segue em monitoramento"}`
-      : "Nesta semana, a IA ainda não encontrou fontes reais suficientes para gerar um resumo robusto. Clique em Recarregar feed para tentar capturar novas matérias e sinais.";
-
-    return {
-      summary,
-      positive,
-      neutral,
-      negative,
-      topSources,
-      topTopics,
-      mostRelevant,
-      mainRisk,
-      mainOpportunity
-    };
-  }, [scopedItems, topNarratives, currentWeek]);
-
   const riskItems = useMemo(() => {
     return [...snapshot.items]
+      .filter((item) => !isSearchBackfill(item))
       .filter((item) => item.sentiment === "negative" || item.riskScore >= 55)
       .sort((a, b) => b.riskScore - a.riskScore)
       .slice(0, 8);
@@ -231,6 +321,7 @@ export default function Page() {
 
   const opportunityItems = useMemo(() => {
     return [...snapshot.items]
+      .filter((item) => !isSearchBackfill(item))
       .sort((a, b) => b.opportunityScore - a.opportunityScore)
       .slice(0, 8);
   }, [snapshot.items]);
@@ -238,21 +329,20 @@ export default function Page() {
   async function updateIntelligence() {
     setLoading(true);
     try {
-      const lastRun = localStorage.getItem(LAST_RUN_KEY) || undefined;
-      const res = await fetch("/api/intelligence/update", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ lastRun })
-      });
+      const previousTotal = snapshot.totalItems;
+      const res = await fetch("/api/intelligence/update", { method: "POST" });
       if (!res.ok) throw new Error("Update failed");
       const data = (await res.json()) as IntelligenceSnapshot;
       setSnapshot(data);
       setSelectedWeek(data.currentWeekId);
       localStorage.setItem(CACHE_KEY, JSON.stringify(data));
       localStorage.setItem(LAST_RUN_KEY, new Date().toISOString().slice(0, 10));
-      toast.success("Feed atualizado com mais matérias reais e fontes usadas pela IA.");
+      const delta = Math.max(0, data.totalItems - previousTotal);
+      const msg = `Feed atualizado: ${data.totalItems} sinais consolidados, ${delta} novos vs cache anterior.`;
+      setLastUpdateMessage(msg);
+      toast.success(msg);
     } catch {
-      toast.error("Não consegui atualizar agora. Mantive o arquivo local.");
+      toast.error("Não consegui atualizar agora. Mantive o histórico local.");
     } finally {
       setLoading(false);
     }
@@ -288,11 +378,7 @@ export default function Page() {
         <div className="navlabel">Semana atual</div>
         <nav>
           {navItems.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              className={`navitem ${activeView === key ? "active" : ""}`}
-              onClick={() => setActiveView(key)}
-            >
+            <button key={key} className={`navitem ${activeView === key ? "active" : ""}`} onClick={() => setActiveView(key)}>
               <Icon size={17} />
               {label}
               {key === "risks" && <span className="badge">{riskItems.length}</span>}
@@ -306,6 +392,8 @@ export default function Page() {
           Atualizado: <b>{new Date(snapshot.generatedAt).toLocaleString("pt-BR")}</b>
           <br />
           Cobertura: <b>BR · pt-BR</b>
+          <br />
+          <span>{lastUpdateMessage}</span>
         </div>
       </aside>
 
@@ -344,7 +432,16 @@ export default function Page() {
                 <p>Consolidação semanal com matérias clicáveis, fontes, sentimento, risco e oportunidade.</p>
               </div>
 
-              <span className="tagline"><span className="dot" /> Feed interativo · clique nas matérias para abrir a fonte</span>
+              <div className="executive-readout">
+                <span className="tagline"><span className="dot" /> Leitura executiva da semana</span>
+                <h3>{weeklyNarrativeSummary.topInsight?.title || "Monitoramento ativo de Harry Potter"}</h3>
+                <p>{weeklyNarrativeSummary.summary}</p>
+                <div className="readout-sources">
+                  {weeklyNarrativeSummary.topSources.slice(0, 5).map((source) => (
+                    <span key={source.source}>{source.source} · {source.count}</span>
+                  ))}
+                </div>
+              </div>
 
               <div className="kpis">
                 <div className="kpi"><small>Matérias / Sinais</small><strong>{scopedItems.length}</strong><span className="smallnote">janela selecionada</span></div>
@@ -372,15 +469,15 @@ export default function Page() {
                 <div className="panel">
                   <h3>Narrativas dominantes</h3>
                   <div className="list">
-                    {topNarratives.length ? topNarratives.map(({ tag, items, top }) => (
-                      <a className="row" key={tag} href={cleanUrl(top.url)} target="_blank" rel="noreferrer">
+                    {narrativeInsights.length ? narrativeInsights.slice(0, 5).map((insight) => (
+                      <button className="row row-button" key={insight.id} onClick={() => setActiveView("narratives")}>
                         <div>
-                          <b>{tag}</b>
-                          <small>{items.length} sinais · fonte principal: {top.source}</small>
+                          <b>{insight.title}</b>
+                          <small>{insight.evidence.length} evidência(s) · fontes: {insight.sourceNames.join(", ")}</small>
                         </div>
                         <ExternalLink size={15} />
-                      </a>
-                    )) : <div className="empty">Sem fontes reais suficientes nessa semana para gerar narrativa.</div>}
+                      </button>
+                    )) : <div className="empty">Sem narrativas suficientes nessa janela.</div>}
                   </div>
                 </div>
               </div>
@@ -425,9 +522,7 @@ export default function Page() {
                   <span className="eyebrow">Resumo da semana</span>
                   <h2>O que a IA encontrou</h2>
                 </div>
-                <p>
-                  Síntese executiva da semana selecionada, com as fontes usadas pela IA para chegar na leitura.
-                </p>
+                <p>Síntese executiva da semana selecionada, com fontes usadas pela IA e evidências clicáveis.</p>
               </div>
 
               <div className="narrative-summary">
@@ -448,18 +543,14 @@ export default function Page() {
                 <div className="panel">
                   <h3>Leitura da IA</h3>
                   <div className="list">
-                    <div className="insight-row">
-                      <b>Narrativa principal</b>
-                      <p>{weeklyNarrativeSummary.mostRelevant?.title || currentWeek?.keyNarrative || "Sem narrativa consolidada nesta semana."}</p>
-                    </div>
-                    <div className="insight-row">
-                      <b>Principal oportunidade</b>
-                      <p>{weeklyNarrativeSummary.mainOpportunity?.summary || "A IA ainda não encontrou oportunidade forte nesta janela."}</p>
-                    </div>
-                    <div className="insight-row">
-                      <b>Ponto de atenção</b>
-                      <p>{weeklyNarrativeSummary.mainRisk?.sentimentReason || "Sem risco crítico identificado nesta semana."}</p>
-                    </div>
+                    {narrativeInsights.length ? narrativeInsights.map((insight) => (
+                      <div className="insight-row" key={insight.id}>
+                        <div className="meta"><span className={`pill ${sentimentClass(insight.sentiment)}`}>{sentimentLabel(insight.sentiment)}</span><span className="pill nos">Opp {insight.opportunityScore}</span><span className="pill neg">Risk {insight.riskScore}</span></div>
+                        <b>{insight.title}</b>
+                        <p>{insight.summary}</p>
+                        <small>Por que importa: {insight.whyItMatters}</small>
+                      </div>
+                    )) : <div className="empty">Sem leitura consolidada nesta semana.</div>}
                   </div>
                 </div>
 
@@ -513,15 +604,10 @@ export default function Page() {
                     <span className="outlet">{item.source}</span>
                     <span>
                       <b>{item.title}</b>
-                      <small>
-                        {sourceLabel(item)} · Resumo IA: {item.summary}
-                      </small>
+                      <small>{sourceLabel(item)} · Resumo IA: {item.summary}</small>
                     </span>
                     <span className={`pill ${sentimentClass(item.sentiment)}`}>{sentimentLabel(item.sentiment)}</span>
-                    <span className="open-label">
-                      {actionLabel(item)}
-                      <ExternalLink size={14} />
-                    </span>
+                    <span className="open-label">{actionLabel(item)}<ExternalLink size={14} /></span>
                   </a>
                 )) : <div className="empty">Sem fontes reais nessa semana. Clique em Recarregar feed para buscar novas matérias.</div>}
               </div>
@@ -555,7 +641,7 @@ export default function Page() {
           {activeView === "opps" && (
             <section className="view active">
               <div className="head"><div><span className="eyebrow">Oportunidades</span><h2>Onde surfar a conversa</h2></div><p>Itens com maior potencial de PR, social, creators e CRM.</p></div>
-              <div className="hero"><span className="eyebrow">Insight aplicável</span><h2>{currentWeek?.keyNarrative}</h2><p>{currentWeek?.whatChanged}</p><div className="facts"><div><small>Semana</small><b>{currentWeek?.weekId}</b></div><div><small>Opportunity</small><b>{currentWeek?.opportunityScore}/100</b></div><div><small>Buzz</small><b>{currentWeek?.buzzScore}/100</b></div></div></div>
+              <div className="hero"><span className="eyebrow">Insight aplicável</span><h2>{weeklyNarrativeSummary.topInsight?.title || currentWeek?.keyNarrative}</h2><p>{weeklyNarrativeSummary.topInsight?.whyItMatters || currentWeek?.whatChanged}</p><div className="facts"><div><small>Semana</small><b>{currentWeek?.weekId}</b></div><div><small>Opportunity</small><b>{currentWeek?.opportunityScore}/100</b></div><div><small>Buzz</small><b>{currentWeek?.buzzScore}/100</b></div></div></div>
               <div className="oppgrid">{opportunityItems.map((item) => <a className="card link-card" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer"><div className="meta"><span className="pill nos">Opp {item.opportunityScore}</span><span className="pill neu">{item.weekId}</span></div><h4>{item.title}</h4><p>{item.summary}</p><small>Fonte usada pela IA: {item.source} · {actionLabel(item)} <ExternalLink size={12}/></small></a>)}</div>
             </section>
           )}
@@ -563,7 +649,7 @@ export default function Page() {
           {activeView === "assistant" && (
             <section className="view active">
               <div className="head"><div><span className="eyebrow">AI Assistant</span><h2>Leitura executiva</h2></div><p>Resposta contextual baseada na semana selecionada.</p></div>
-              <div className="panel assistant-box"><Search size={20}/><p><b>Leitura Lumos:</b> {currentWeek?.whatChanged} A narrativa principal é “{currentWeek?.keyNarrative}”. Próximo passo: abrir as fontes da aba Cobertura, validar as matérias de maior relevância e transformar os sinais positivos em pauta editorial.</p></div>
+              <div className="panel assistant-box"><Search size={20}/><p><b>Leitura Lumos:</b> {weeklyNarrativeSummary.summary} Próximo passo: abrir as evidências da aba Narrativas e priorizar as fontes com maior recorrência para briefing de PR/social.</p></div>
             </section>
           )}
         </div>
