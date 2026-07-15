@@ -93,8 +93,7 @@ function sourceLabel(item: IntelligenceItem) {
 
 function actionLabel(item: IntelligenceItem) {
   if (item.sourceKind === "official") return "Abrir fonte oficial";
-  if (item.sourceKind === "news") return isSearchBackfill(item) ? "Buscar matérias da semana" : "Abrir matéria";
-  if (item.sourceKind === "google") return "Buscar matérias da semana";
+  if (item.sourceKind === "news") return "Abrir matéria";
   if (item.sourceKind === "youtube") return "Ver vídeos";
   if (item.sourceKind === "reddit") return "Ver discussão";
   if (item.sourceKind === "trends") return "Abrir Trends";
@@ -135,15 +134,14 @@ export default function Page() {
 
   const scopedItems = useMemo(() => {
     const selectedNumber = Number(selectedWeek.replace("W", ""));
+    const windowItems = period === "all"
+      ? snapshot.items.filter((item) => {
+          const itemNumber = Number(item.weekId.replace("W", ""));
+          return itemNumber <= selectedNumber;
+        })
+      : snapshot.items.filter((item) => item.weekId === selectedWeek);
 
-    if (period === "all") {
-      return snapshot.items.filter((item) => {
-        const itemNumber = Number(item.weekId.replace("W", ""));
-        return itemNumber <= selectedNumber;
-      });
-    }
-
-    return snapshot.items.filter((item) => item.weekId === selectedWeek);
+    return windowItems.filter((item) => !isSearchBackfill(item));
   }, [snapshot.items, selectedWeek, period]);
 
   const filteredCoverage = useMemo(() => {
@@ -342,7 +340,7 @@ export default function Page() {
                         </div>
                         <ExternalLink size={15} />
                       </a>
-                    )) : <div className="empty">Sem narrativas nessa janela.</div>}
+                    )) : <div className="empty">Sem fontes reais suficientes nessa semana para gerar narrativa.</div>}
                   </div>
                 </div>
               </div>
@@ -389,7 +387,7 @@ export default function Page() {
                     <h4>{tag}</h4>
                     <div className="meta"><span className={`pill ${sentimentClass(top.sentiment)}`}>{sentimentLabel(top.sentiment)}</span><span className="pill nos">{items.length} sinais</span></div>
                     <p>{top.summary}</p>
-                    <small>Fonte: {top.source} · abrir matéria <ExternalLink size={12} /></small>
+                    <small>Fonte usada pela IA: {top.source} · {actionLabel(top)} <ExternalLink size={12} /></small>
                   </a>
                 ))}
               </div>
@@ -412,8 +410,7 @@ export default function Page() {
                     <span>
                       <b>{item.title}</b>
                       <small>
-                        {sourceLabel(item)} · {item.summary}
-                        {isSearchBackfill(item) ? " · Atalho de busca, não matéria individual." : ""}
+                        {sourceLabel(item)} · Resumo IA: {item.summary}
                       </small>
                     </span>
                     <span className={`pill ${sentimentClass(item.sentiment)}`}>{sentimentLabel(item.sentiment)}</span>
@@ -422,7 +419,7 @@ export default function Page() {
                       <ExternalLink size={14} />
                     </span>
                   </a>
-                )) : <div className="empty">Sem cobertura nessa janela.</div>}
+                )) : <div className="empty">Sem fontes reais nessa semana. Clique em Recarregar feed para buscar novas matérias.</div>}
               </div>
             </section>
           )}
@@ -447,7 +444,7 @@ export default function Page() {
           {activeView === "risks" && (
             <section className="view active">
               <div className="head"><div><span className="eyebrow">Radar de riscos</span><h2>Pontos de atenção</h2></div><p>Riscos derivados das conversas e matérias monitoradas.</p></div>
-              <div className="riskgrid">{riskItems.map((item) => <a className="card link-card" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer"><div className="meta"><span className="pill neg">Risk {item.riskScore}</span><span className="pill neu">{item.weekId}</span></div><h4>{item.title}</h4><p>{item.sentimentReason}</p><small>Abrir fonte <ExternalLink size={12}/></small></a>)}</div>
+              <div className="riskgrid">{riskItems.map((item) => <a className="card link-card" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer"><div className="meta"><span className="pill neg">Risk {item.riskScore}</span><span className="pill neu">{item.weekId}</span></div><h4>{item.title}</h4><p>{item.sentimentReason}</p><small>Fonte usada pela IA: {item.source} · {actionLabel(item)} <ExternalLink size={12}/></small></a>)}</div>
             </section>
           )}
 
@@ -455,7 +452,7 @@ export default function Page() {
             <section className="view active">
               <div className="head"><div><span className="eyebrow">Oportunidades</span><h2>Onde surfar a conversa</h2></div><p>Itens com maior potencial de PR, social, creators e CRM.</p></div>
               <div className="hero"><span className="eyebrow">Insight aplicável</span><h2>{currentWeek?.keyNarrative}</h2><p>{currentWeek?.whatChanged}</p><div className="facts"><div><small>Semana</small><b>{currentWeek?.weekId}</b></div><div><small>Opportunity</small><b>{currentWeek?.opportunityScore}/100</b></div><div><small>Buzz</small><b>{currentWeek?.buzzScore}/100</b></div></div></div>
-              <div className="oppgrid">{opportunityItems.map((item) => <a className="card link-card" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer"><div className="meta"><span className="pill nos">Opp {item.opportunityScore}</span><span className="pill neu">{item.weekId}</span></div><h4>{item.title}</h4><p>{item.summary}</p><small>Abrir fonte <ExternalLink size={12}/></small></a>)}</div>
+              <div className="oppgrid">{opportunityItems.map((item) => <a className="card link-card" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer"><div className="meta"><span className="pill nos">Opp {item.opportunityScore}</span><span className="pill neu">{item.weekId}</span></div><h4>{item.title}</h4><p>{item.summary}</p><small>Fonte usada pela IA: {item.source} · {actionLabel(item)} <ExternalLink size={12}/></small></a>)}</div>
             </section>
           )}
 
