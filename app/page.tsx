@@ -182,6 +182,40 @@ export default function Page() {
       .slice(0, 6);
   }, [scopedItems]);
 
+  const weeklyNarrativeSummary = useMemo(() => {
+    const sources = [...new Set(scopedItems.map((item) => item.source))];
+    const positive = scopedItems.filter((item) => item.sentiment === "positive").length;
+    const neutral = scopedItems.filter((item) => item.sentiment === "neutral").length;
+    const negative = scopedItems.filter((item) => item.sentiment === "negative").length;
+    const topSources = sources
+      .map((source) => ({
+        source,
+        count: scopedItems.filter((item) => item.source === source).length
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    const topTopics = topNarratives.slice(0, 5).map((narrative) => narrative.tag);
+    const mostRelevant = [...scopedItems].sort((a, b) => b.relevanceScore - a.relevanceScore)[0];
+    const mainRisk = [...scopedItems].sort((a, b) => b.riskScore - a.riskScore)[0];
+    const mainOpportunity = [...scopedItems].sort((a, b) => b.opportunityScore - a.opportunityScore)[0];
+
+    const summary = scopedItems.length
+      ? `Nesta semana, a IA consolidou ${scopedItems.length} sinais sobre Harry Potter a partir de ${sources.length} fonte(s). A leitura principal é que ${mostRelevant?.summary || currentWeek?.keyNarrative || "a conversa segue em monitoramento"}`
+      : "Nesta semana, a IA ainda não encontrou fontes reais suficientes para gerar um resumo robusto. Clique em Recarregar feed para tentar capturar novas matérias e sinais.";
+
+    return {
+      summary,
+      positive,
+      neutral,
+      negative,
+      topSources,
+      topTopics,
+      mostRelevant,
+      mainRisk,
+      mainOpportunity
+    };
+  }, [scopedItems, topNarratives, currentWeek]);
+
   const riskItems = useMemo(() => {
     return [...snapshot.items]
       .filter((item) => item.sentiment === "negative" || item.riskScore >= 55)
@@ -380,16 +414,80 @@ export default function Page() {
 
           {activeView === "narratives" && (
             <section className="view active">
-              <div className="head"><div><span className="eyebrow">Principais conversas</span><h2>Narrativas</h2></div><p>Temas derivados dos sinais da janela selecionada.</p></div>
+              <div className="head">
+                <div>
+                  <span className="eyebrow">Resumo da semana</span>
+                  <h2>O que a IA encontrou</h2>
+                </div>
+                <p>
+                  Síntese executiva da semana selecionada, com as fontes usadas pela IA para chegar na leitura.
+                </p>
+              </div>
+
+              <div className="narrative-summary">
+                <div>
+                  <span className="tagline"><span className="dot" /> {selectedWeek} · {period === "all" ? "histórico acumulado" : "semana selecionada"}</span>
+                  <h3>Harry Potter está sendo falado?</h3>
+                  <p>{weeklyNarrativeSummary.summary}</p>
+                </div>
+
+                <div className="narrative-scorecard">
+                  <div><small>Positivo</small><b>{weeklyNarrativeSummary.positive}</b></div>
+                  <div><small>Neutro</small><b>{weeklyNarrativeSummary.neutral}</b></div>
+                  <div><small>Crítico</small><b>{weeklyNarrativeSummary.negative}</b></div>
+                </div>
+              </div>
+
+              <div className="grid2b">
+                <div className="panel">
+                  <h3>Leitura da IA</h3>
+                  <div className="list">
+                    <div className="insight-row">
+                      <b>Narrativa principal</b>
+                      <p>{weeklyNarrativeSummary.mostRelevant?.title || currentWeek?.keyNarrative || "Sem narrativa consolidada nesta semana."}</p>
+                    </div>
+                    <div className="insight-row">
+                      <b>Principal oportunidade</b>
+                      <p>{weeklyNarrativeSummary.mainOpportunity?.summary || "A IA ainda não encontrou oportunidade forte nesta janela."}</p>
+                    </div>
+                    <div className="insight-row">
+                      <b>Ponto de atenção</b>
+                      <p>{weeklyNarrativeSummary.mainRisk?.sentimentReason || "Sem risco crítico identificado nesta semana."}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <h3>Fontes usadas pela IA</h3>
+                  <div className="list">
+                    {weeklyNarrativeSummary.topSources.length ? weeklyNarrativeSummary.topSources.map((source) => (
+                      <div className="source-row" key={source.source}>
+                        <b>{source.source}</b>
+                        <span>{source.count} sinal(is)</span>
+                      </div>
+                    )) : <div className="empty">Sem fontes reais nesta semana.</div>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="section-subhead">
+                <span className="eyebrow">Evidências</span>
+                <h3>Itens que sustentam o resumo</h3>
+              </div>
+
               <div className="cards">
-                {topNarratives.map(({ tag, items, top }) => (
-                  <a className="card link-card" key={tag} href={cleanUrl(top.url)} target="_blank" rel="noreferrer">
-                    <h4>{tag}</h4>
-                    <div className="meta"><span className={`pill ${sentimentClass(top.sentiment)}`}>{sentimentLabel(top.sentiment)}</span><span className="pill nos">{items.length} sinais</span></div>
-                    <p>{top.summary}</p>
-                    <small>Fonte usada pela IA: {top.source} · {actionLabel(top)} <ExternalLink size={12} /></small>
+                {scopedItems.length ? scopedItems.map((item) => (
+                  <a className="card link-card" key={item.id} href={cleanUrl(item.url)} target="_blank" rel="noreferrer">
+                    <h4>{item.title}</h4>
+                    <div className="meta">
+                      <span className={`pill ${sentimentClass(item.sentiment)}`}>{sentimentLabel(item.sentiment)}</span>
+                      <span className="pill nos">{item.weekId}</span>
+                      <span className="pill neu">{sourceLabel(item)}</span>
+                    </div>
+                    <p>{item.summary}</p>
+                    <small>Fonte usada pela IA: {item.source} · {actionLabel(item)} <ExternalLink size={12} /></small>
                   </a>
-                ))}
+                )) : <div className="empty" style={{ gridColumn: "1 / -1" }}>Sem evidências suficientes para esta semana.</div>}
               </div>
             </section>
           )}
