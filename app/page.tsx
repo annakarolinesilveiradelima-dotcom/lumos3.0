@@ -45,7 +45,7 @@ const initialSnapshot = buildSnapshot(
   new Date().toISOString().slice(0, 10)
 );
 
-const CACHE_KEY = "lumos.v7.hp-filter.snapshot";
+const CACHE_KEY = "lumos.v8.hp-filter.snapshot";
 
 type ViewKey =
   | "overview"
@@ -133,7 +133,7 @@ function cleanUrl(url: string) {
   return url;
 }
 
-function normalize(value: string) {
+function normalizeText(value: string) {
   return value
     .toLowerCase()
     .normalize("NFD")
@@ -151,7 +151,7 @@ function isSearchBackfill(item: IntelligenceItem) {
 }
 
 function isHarryPotterRelevant(item: IntelligenceItem) {
-  const text = normalize(
+  const text = normalizeText(
     `${item.title} ${item.summary} ${item.tags.join(" ")} ${item.source}`
   );
 
@@ -177,7 +177,11 @@ function isHarryPotterRelevant(item: IntelligenceItem) {
 
   const sourceIsOfficial = item.sourceKind === "official";
 
-  return sourceIsOfficial || hasHarryPotter || (hasWizardingTerm && hasSeriesContext);
+  return (
+    sourceIsOfficial ||
+    hasHarryPotter ||
+    (hasWizardingTerm && hasSeriesContext)
+  );
 }
 
 function sourceLabel(item: IntelligenceItem) {
@@ -203,11 +207,11 @@ function actionLabel(item: IntelligenceItem) {
 }
 
 function hasTag(item: IntelligenceItem, tags: string[]) {
-  const field = normalize(
+  const field = normalizeText(
     `${item.title} ${item.summary} ${item.tags.join(" ")}`
   );
 
-  return tags.some((tag) => field.includes(normalize(tag)));
+  return tags.some((tag) => field.includes(normalizeText(tag)));
 }
 
 function sourceNames(items: IntelligenceItem[]) {
@@ -267,7 +271,14 @@ function buildNarrativeInsights(items: IntelligenceItem[]): NarrativeInsight[] {
       "A IA encontrou sinais de que a conversa sobre Harry Potter continua apoiada no teaser, em fontes oficiais e na memória afetiva da franquia.",
       "Esse eixo é seguro para social, CRM e PR porque reforça familiaridade antes do próximo grande asset.",
       cleanItems.filter((item) =>
-        hasTag(item, ["teaser", "official", "nostalgia", "hbo", "launch", "release"])
+        hasTag(item, [
+          "teaser",
+          "official",
+          "nostalgia",
+          "hbo",
+          "launch",
+          "release"
+        ])
       )
     ),
 
@@ -277,7 +288,14 @@ function buildNarrativeInsights(items: IntelligenceItem[]): NarrativeInsight[] {
       "A IA identificou que conversas sobre elenco, caracterização e fidelidade aos livros aparecem como temas recorrentes de atenção.",
       "Esses temas precisam de mensagens claras porque podem virar dúvidas ou críticas rapidamente se não forem contextualizados.",
       cleanItems.filter((item) =>
-        hasTag(item, ["casting", "adaptation", "fandom", "elenco", "livros", "cast"])
+        hasTag(item, [
+          "casting",
+          "adaptation",
+          "fandom",
+          "elenco",
+          "livros",
+          "cast"
+        ])
       )
     ),
 
@@ -377,7 +395,9 @@ export default function Page() {
       .filter((item) => isHarryPotterRelevant(item));
 
     if (period === "all") {
-      return cleanItems.filter((item) => weekNumber(item.weekId) <= selectedNumber);
+      return cleanItems.filter(
+        (item) => weekNumber(item.weekId) <= selectedNumber
+      );
     }
 
     const exactWeekItems = cleanItems.filter(
@@ -480,7 +500,14 @@ export default function Page() {
   }, [scopedItems]);
 
   const platformData = useMemo(() => {
-    const labels = ["official", "news", "trends", "youtube", "reddit", "x"] as const;
+    const labels = [
+      "official",
+      "news",
+      "trends",
+      "youtube",
+      "reddit",
+      "x"
+    ] as const;
 
     return labels.map((kind) => ({
       name:
@@ -801,8 +828,9 @@ export default function Page() {
 
                   <div className="list">
                     {narrativeInsights.length ? (
-                      narrativeInsights.slice(0, NARRATIVE_DISPLAY_LIMIT).map(
-                        (insight) => (
+                      narrativeInsights
+                        .slice(0, NARRATIVE_DISPLAY_LIMIT)
+                        .map((insight) => (
                           <button
                             className="row row-button"
                             key={insight.id}
@@ -818,8 +846,7 @@ export default function Page() {
 
                             <ExternalLink size={15} />
                           </button>
-                        )
-                      )
+                        ))
                     ) : (
                       <div className="empty">
                         Sem narrativas suficientes nessa janela.
@@ -1206,7 +1233,9 @@ export default function Page() {
                   <h2>Perfis em alta</h2>
                 </div>
 
-                <p>Creators inferidos de dados conectados, principalmente YouTube.</p>
+                <p>
+                  Creators inferidos de dados conectados, principalmente YouTube.
+                </p>
               </div>
 
               <table className="table">
