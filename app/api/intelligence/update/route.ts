@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { updateIntelligence } from "@/lib/intelligence";
-export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const snapshot = await updateIntelligence(body?.lastRun);
+
+export async function POST() {
+  const snapshot = await updateIntelligence();
+
   return NextResponse.json(snapshot);
 }
+
 export async function GET() {
   const snapshot = await updateIntelligence();
+
   return NextResponse.json(snapshot);
 }
