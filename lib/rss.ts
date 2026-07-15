@@ -5,19 +5,16 @@ import { cleanText, host, uid } from "@/lib/utils";
 
 const GOOGLE_NEWS_BASE = "https://news.google.com/rss/search";
 
-const QUERIES = [
-  "Harry Potter HBO Max série",
-  "Harry Potter série HBO",
-  "Harry Potter HBO Brasil",
-  "Harry Potter HBO Max Brasil",
-  "Harry Potter teaser HBO",
-  "Harry Potter elenco HBO",
-  "Harry Potter reboot HBO",
-  "Harry Potter Max série",
-  "Harry Potter Wizarding World HBO",
-  "Harry Potter HBO Max estreia",
-  "Harry Potter nova série",
-  "Harry Potter série streaming"
+const CORE_QUERIES = [
+  '"Harry Potter" "HBO"',
+  '"Harry Potter" "HBO Max"',
+  '"Harry Potter" "Max" "série"',
+  '"Harry Potter" "nova série"',
+  '"Harry Potter" "teaser" "HBO"',
+  '"Harry Potter" "elenco" "HBO"',
+  '"Harry Potter" "estreia" "HBO"',
+  '"Harry Potter" "Wizarding World"',
+  '"Harry Potter" "Hogwarts" "HBO"'
 ];
 
 const PRIORITY_SITES = [
@@ -29,14 +26,12 @@ const PRIORITY_SITES = [
   "br.ign.com",
   "cinepop.com.br",
   "papelpop.com",
-  "terra.com.br/diversao",
-  "cnnbrasil.com.br/pop",
+  "terra.com.br",
+  "cnnbrasil.com.br",
   "uol.com.br/splash",
   "tecmundo.com.br",
   "harrypotter.com",
-  "press.wbd.com",
-  "hbo.com",
-  "max.com"
+  "press.wbd.com"
 ];
 
 function rssUrl(query: string, from: string, to: string) {
@@ -85,8 +80,50 @@ function extractSource(itemXml: string, fallbackUrl: string) {
   };
 }
 
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isHarryPotterRelevant(
+  title: string,
+  summary: string,
+  sourceName: string,
+  sourceUrl: string
+) {
+  const text = normalize(`${title} ${summary} ${sourceName} ${sourceUrl}`);
+
+  const hasHarryPotter = text.includes("harry") && text.includes("potter");
+
+  const hasWizarding =
+    text.includes("hogwarts") ||
+    text.includes("wizarding world") ||
+    text.includes("mundo bruxo") ||
+    text.includes("dumbledore") ||
+    text.includes("hermione") ||
+    text.includes("ron weasley") ||
+    text.includes("voldemort");
+
+  const hasSeriesContext =
+    text.includes("hbo") ||
+    text.includes("max") ||
+    text.includes("serie") ||
+    text.includes("série") ||
+    text.includes("teaser") ||
+    text.includes("elenco") ||
+    text.includes("estreia");
+
+  const isOfficialSource =
+    /harrypotter\.com|press\.wbd\.com|hbo\.com|max\.com/i.test(sourceUrl);
+
+  return isOfficialSource || ((hasHarryPotter || hasWizarding) && hasSeriesContext);
+}
+
 function classifyTags(title: string, summary: string, query: string) {
-  const text = `${title} ${summary} ${query}`.toLowerCase();
+  const text = normalize(`${title} ${summary} ${query}`);
+
   const tags = new Set<string>(["news", "brasil"]);
 
   if (text.includes("teaser") || text.includes("trailer")) {
@@ -100,7 +137,7 @@ function classifyTags(title: string, summary: string, query: string) {
   if (
     text.includes("estreia") ||
     text.includes("premiere") ||
-    text.includes("lançamento")
+    text.includes("lancamento")
   ) {
     tags.add("release");
   }
@@ -109,7 +146,7 @@ function classifyTags(title: string, summary: string, query: string) {
     tags.add("hbo-max");
   }
 
-  if (text.includes("fãs") || text.includes("fandom")) {
+  if (text.includes("fas") || text.includes("fandom")) {
     tags.add("fandom");
   }
 
@@ -134,9 +171,22 @@ function buildItem(itemXml: string, query: string): IntelligenceItem | null {
     return null;
   }
 
-  const publishedAt = new Date(pubDate).toISOString();
   const source = extractSource(itemXml, link);
-  const summary = description || `Matéria encontrada pela IA para a busca: ${query}.`;
+  const summary =
+    description || `Matéria encontrada pela IA para a busca: ${query}.`;
+
+  const isRelevant = isHarryPotterRelevant(
+    title,
+    summary,
+    source.sourceName,
+    source.sourceUrl || link
+  );
+
+  if (!isRelevant) {
+    return null;
+  }
+
+  const publishedAt = new Date(pubDate).toISOString();
   const sentiment = classifySentiment(`${title} ${summary}`);
   const tags = classifyTags(title, summary, query);
 
@@ -175,7 +225,7 @@ function buildItem(itemXml: string, query: string): IntelligenceItem | null {
     sentimentReason: sentiment.reason,
     riskScore: riskBase,
     opportunityScore: oppBase,
-    relevanceScore: 72,
+    relevanceScore: isOfficial ? 92 : 72,
     tags,
     reach: isOfficial ? 92 : 68,
     region: "BR"
@@ -190,7 +240,7 @@ async function fetchQuery(
   try {
     const res = await fetch(rssUrl(query, from, to), {
       headers: {
-        "user-agent": "Lumos Entertainment Intelligence/2.2"
+        "user-agent": "Lumos Entertainment Intelligence/2.3"
       },
       next: {
         revalidate: 900
@@ -203,63 +253,3 @@ async function fetchQuery(
 
     const xml = await res.text();
 
-    const itemMatches = [...xml.matchAll(/<item>[\s\S]*?<\/item>/gi)].map(
-      (match) => match[0]
-    );
-
-    return itemMatches
-      .map((itemXml) => buildItem(itemXml, query))
-      .filter(Boolean)
-      .slice(0, 20) as IntelligenceItem[];
-  } catch {
-    return [];
-  }
-}
-
-function dedupe(items: IntelligenceItem[]) {
-  const seen = new Set<string>();
-
-  return items.filter((item) => {
-    const key = item.title
-      .toLowerCase()
-      .replace(/[^a-z0-9áéíóúãõç]/gi, "")
-      .slice(0, 95);
-
-    if (seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
-}
-
-export async function fetchGoogleNews(
-  from: string,
-  to: string
-): Promise<IntelligenceItem[]> {
-  const coreQueries = QUERIES;
-
-  const siteQueries = PRIORITY_SITES.map(
-    (site) => `Harry Potter HBO Max site:${site}`
-  );
-
-  const allQueries = [...coreQueries, ...siteQueries];
-
-  const batches: IntelligenceItem[][] = [];
-  const concurrency = 5;
-
-  for (let i = 0; i < allQueries.length; i += concurrency) {
-    const chunk = allQueries.slice(i, i + concurrency);
-
-    const results = await Promise.all(
-      chunk.map((query) => fetchQuery(query, from, to))
-    );
-
-    batches.push(...results);
-  }
-
-  return dedupe(batches.flat())
-    .sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt))
-    .slice(0, 220);
-}
