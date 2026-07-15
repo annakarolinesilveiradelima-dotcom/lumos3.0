@@ -80,7 +80,7 @@ function extractSource(itemXml: string, fallbackUrl: string) {
   };
 }
 
-function normalize(value: string) {
+function normalizeText(value: string) {
   return value
     .toLowerCase()
     .normalize("NFD")
@@ -93,7 +93,7 @@ function isHarryPotterRelevant(
   sourceName: string,
   sourceUrl: string
 ) {
-  const text = normalize(`${title} ${summary} ${sourceName} ${sourceUrl}`);
+  const text = normalizeText(`${title} ${summary} ${sourceName} ${sourceUrl}`);
 
   const hasHarryPotter = text.includes("harry") && text.includes("potter");
 
@@ -122,7 +122,7 @@ function isHarryPotterRelevant(
 }
 
 function classifyTags(title: string, summary: string, query: string) {
-  const text = normalize(`${title} ${summary} ${query}`);
+  const text = normalizeText(`${title} ${summary} ${query}`);
 
   const tags = new Set<string>(["news", "brasil"]);
 
@@ -137,7 +137,8 @@ function classifyTags(title: string, summary: string, query: string) {
   if (
     text.includes("estreia") ||
     text.includes("premiere") ||
-    text.includes("lancamento")
+    text.includes("lancamento") ||
+    text.includes("lançamento")
   ) {
     tags.add("release");
   }
@@ -146,7 +147,7 @@ function classifyTags(title: string, summary: string, query: string) {
     tags.add("hbo-max");
   }
 
-  if (text.includes("fas") || text.includes("fandom")) {
+  if (text.includes("fas") || text.includes("fãs") || text.includes("fandom")) {
     tags.add("fandom");
   }
 
@@ -172,17 +173,18 @@ function buildItem(itemXml: string, query: string): IntelligenceItem | null {
   }
 
   const source = extractSource(itemXml, link);
+
   const summary =
     description || `Matéria encontrada pela IA para a busca: ${query}.`;
 
-  const isRelevant = isHarryPotterRelevant(
+  const relevant = isHarryPotterRelevant(
     title,
     summary,
     source.sourceName,
     source.sourceUrl || link
   );
 
-  if (!isRelevant) {
+  if (!relevant) {
     return null;
   }
 
@@ -202,7 +204,7 @@ function buildItem(itemXml: string, query: string): IntelligenceItem | null {
         ? 52
         : 22;
 
-  const oppBase =
+  const opportunityBase =
     sentiment.sentiment === "positive"
       ? 82
       : tags.includes("teaser") || tags.includes("release")
@@ -217,14 +219,14 @@ function buildItem(itemXml: string, query: string): IntelligenceItem | null {
     url: link,
     publishedAt,
     weekId: getWeekId(publishedAt.slice(0, 10)),
-    summary: `A IA encontrou esta fonte ao monitorar “${query}”. ${summary}`.slice(
+    summary: `A IA encontrou esta fonte ao monitorar "${query}". ${summary}`.slice(
       0,
       420
     ),
     sentiment: sentiment.sentiment,
     sentimentReason: sentiment.reason,
     riskScore: riskBase,
-    opportunityScore: oppBase,
+    opportunityScore: opportunityBase,
     relevanceScore: isOfficial ? 92 : 72,
     tags,
     reach: isOfficial ? 92 : 68,
@@ -253,3 +255,66 @@ async function fetchQuery(
 
     const xml = await res.text();
 
+    const itemMatches = xml
+      .split("<item>")
+      .slice(1)
+      .map((part) => {
+        const content = part.split("</item>")[0];
+        return `<item>${content}</item>`;
+      });
+
+    return itemMatches
+      .map((itemXml) => buildItem(itemXml, query))
+      .filter(Boolean)
+      .slice(0, 18) as IntelligenceItem[];
+  } catch {
+    return [];
+  }
+}
+
+function dedupe(items: IntelligenceItem[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = item.title
+      .toLowerCase()
+      .replace(/[^a-z0-9áéíóúãõç]/gi, "")
+      .slice(0, 95);
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+export async function fetchGoogleNews(
+  from: string,
+  to: string
+): Promise<IntelligenceItem[]> {
+  const siteQueries = PRIORITY_SITES.map(
+    (site) => `"Harry Potter" "HBO" site:${site}`
+  );
+
+  const allQueries = [...CORE_QUERIES, ...siteQueries];
+
+  const batches: IntelligenceItem[][] = [];
+
+  const concurrency = 5;
+
+  for (let i = 0; i < allQueries.length; i += concurrency) {
+    const chunk = allQueries.slice(i, i + concurrency);
+
+    const results = await Promise.all(
+      chunk.map((query) => fetchQuery(query, from, to))
+    );
+
+    batches.push(...results);
+  }
+
+  return dedupe(batches.flat())
+    .sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt))
+    .slice(0, 160);
+}
