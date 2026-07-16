@@ -52,7 +52,7 @@ type NarrativeInsight = {
 };
 
 const initialSnapshot = buildSnapshot(seedItems, TEASER_LAUNCH_DATE, new Date().toISOString().slice(0, 10));
-const CACHE_KEY = "lumos.v14.assistant-risk-separated.snapshot";
+const CACHE_KEY = "lumos.v15.final-assistant-refinement.snapshot";
 const COVERAGE_DISPLAY_LIMIT = 35;
 const EVIDENCE_DISPLAY_LIMIT = 12;
 const NARRATIVE_DISPLAY_LIMIT = 5;
@@ -247,6 +247,25 @@ function buildNarrativeInsights(items: IntelligenceItem[]): NarrativeInsight[] {
   return fallback ? [fallback] : [];
 }
 
+function diversifyBySource(items: IntelligenceItem[], limit: number, maxPerSource = 4) {
+  const counts = new Map<string, number>();
+  const selected: IntelligenceItem[] = [];
+  for (const item of items) {
+    const count = counts.get(item.source) || 0;
+    if (count >= maxPerSource) continue;
+    counts.set(item.source, count + 1);
+    selected.push(item);
+    if (selected.length >= limit) break;
+  }
+  if (selected.length >= limit) return selected;
+  for (const item of items) {
+    if (selected.some((selectedItem) => selectedItem.id === item.id)) continue;
+    selected.push(item);
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
+
 function EvidenceCard({ item }: { item: IntelligenceItem }) {
   return (
     <ExternalAnchor href={cleanUrl(item.url)} className="card link-card">
@@ -312,7 +331,7 @@ export default function Page() {
   const [period, setPeriod] = useState<PeriodKey>("week");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
   const [loading, setLoading] = useState(false);
-  const [lastUpdateMessage, setLastUpdateMessage] = useState("Aguardando atualização do feed.");
+  const [lastUpdateMessage, setLastUpdateMessage] = useState("Feed pronto para análise.");
 
   useEffect(() => {
     const saved = localStorage.getItem(CACHE_KEY);
@@ -382,11 +401,13 @@ export default function Page() {
   }, [coverageFilter, scopedItems]);
 
   const displayedCoverage = useMemo(() => {
-    return [...filteredCoverage].sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, COVERAGE_DISPLAY_LIMIT);
+    const sorted = [...filteredCoverage].sort((a, b) => b.relevanceScore - a.relevanceScore);
+    return diversifyBySource(sorted, COVERAGE_DISPLAY_LIMIT, 4);
   }, [filteredCoverage]);
 
   const displayedEvidence = useMemo(() => {
-    return [...scopedItems].sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, EVIDENCE_DISPLAY_LIMIT);
+    const sorted = [...scopedItems].sort((a, b) => b.relevanceScore - a.relevanceScore);
+    return diversifyBySource(sorted, EVIDENCE_DISPLAY_LIMIT, 3);
   }, [scopedItems]);
 
   const platformData = useMemo(() => {
@@ -430,6 +451,11 @@ export default function Page() {
     const weekHasLowVolume = selectedSignals > 0 && selectedSignals <= 2;
     const hasRealRisk = Boolean(weekRisk);
 
+    const sourceConcentration = weeklyNarrativeSummary.topSources[0];
+    const sourceConcentrationWarning = sourceConcentration && selectedSignals > 1 && sourceConcentration.count / selectedSignals >= 0.7
+      ? `A fonte ${sourceConcentration.source} concentra ${sourceConcentration.count} de ${selectedSignals} sinais; vale buscar validação em outras fontes antes de concluir tendência.`
+      : "";
+
     const historySummary = `Desde o teaser, o Lumos consolidou ${totalSignals} sinais relevantes em ${totalWeeks} semanas. A leitura histórica mostra uma conversa sustentada por nostalgia, fontes oficiais, cobertura editorial local e comparação constante com o legado dos filmes.`;
 
     const weekSummary = selectedSignals
@@ -437,18 +463,18 @@ export default function Page() {
       : `Na semana ${selectedWeek}, a IA ainda não encontrou sinais suficientes. O Lumos está usando contexto histórico para manter a análise ativa.`;
 
     const actions = [
-      weekOpportunity
-        ? `Transformar o tema “${weekOpportunity.title}” em pauta de social/PR para a semana ${selectedWeek}, usando ${weekOpportunity.source} como evidência.`
-        : `Criar uma pauta editorial de aquecimento para a semana ${selectedWeek}, usando nostalgia, retorno a Hogwarts e memória afetiva da franquia.`,
+      weekHasLowVolume
+        ? `Tratar a semana ${selectedWeek} como low-signal week: usar o sinal encontrado como hipótese, não como tendência consolidada.`
+        : weekOpportunity
+          ? `Transformar o tema “${weekOpportunity.title}” em pauta de social/PR para a semana ${selectedWeek}, usando ${weekOpportunity.source} como evidência.`
+          : `Criar uma pauta editorial de aquecimento para a semana ${selectedWeek}, usando nostalgia, retorno a Hogwarts e memória afetiva da franquia.`,
       hasRealRisk
         ? `Monitorar o risco “${weekRisk.title}” na semana ${selectedWeek}, porque pode influenciar percepção de adaptação, comparação com os filmes ou recepção do fandom.`
         : `Sem risco crítico detectado na semana ${selectedWeek}. Manter monitoramento leve em conversas sobre elenco, fidelidade aos livros e comparação com os filmes.`,
       topSources
         ? `Priorizar leitura das fontes mais recorrentes da semana ${selectedWeek}: ${topSources}.`
         : `Recarregar o feed da semana ${selectedWeek} para capturar mais fontes antes de tomar decisões.`,
-      weekHasLowVolume
-        ? `Como a semana ${selectedWeek} tem baixo volume, evitar conclusões fortes e tratar a leitura como sinal preliminar.`
-        : `Preparar um resumo executivo da semana ${selectedWeek} com: o que mudou, fontes principais, oportunidade de conteúdo e pontos de atenção.`
+      sourceConcentrationWarning || `Preparar um resumo executivo da semana ${selectedWeek} com: o que mudou, fontes principais, oportunidade de conteúdo e pontos de atenção.`
     ];
 
     return { historySummary, weekSummary, actions, topOpportunity: weekOpportunity, topRisk: weekRisk, hasRealRisk, weekHasLowVolume, positive, neutral, negative, selectedSignals };
