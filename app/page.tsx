@@ -52,7 +52,7 @@ type NarrativeInsight = {
 };
 
 const initialSnapshot = buildSnapshot(seedItems, TEASER_LAUNCH_DATE, new Date().toISOString().slice(0, 10));
-const CACHE_KEY = "lumos.v13.week-specific-assistant.snapshot";
+const CACHE_KEY = "lumos.v14.assistant-risk-separated.snapshot";
 const COVERAGE_DISPLAY_LIMIT = 35;
 const EVIDENCE_DISPLAY_LIMIT = 12;
 const NARRATIVE_DISPLAY_LIMIT = 5;
@@ -425,29 +425,33 @@ export default function Page() {
     const negative = scopedItems.filter((item) => item.sentiment === "negative").length;
     const topSources = weeklyNarrativeSummary.topSources.slice(0, 4).map((source) => source.source).join(", ");
     const weekOpportunity = [...scopedItems].sort((a, b) => b.opportunityScore - a.opportunityScore)[0];
-    const weekRisk = [...scopedItems].sort((a, b) => b.riskScore - a.riskScore)[0];
+    const weekRisk = [...scopedItems].filter((item) => item.sentiment === "negative" || item.riskScore >= 55).sort((a, b) => b.riskScore - a.riskScore)[0];
     const mainInsight = weeklyNarrativeSummary.topInsight;
+    const weekHasLowVolume = selectedSignals > 0 && selectedSignals <= 2;
+    const hasRealRisk = Boolean(weekRisk);
 
     const historySummary = `Desde o teaser, o Lumos consolidou ${totalSignals} sinais relevantes em ${totalWeeks} semanas. A leitura histórica mostra uma conversa sustentada por nostalgia, fontes oficiais, cobertura editorial local e comparação constante com o legado dos filmes.`;
 
     const weekSummary = selectedSignals
-      ? `Na semana ${selectedWeek}, a IA analisou ${selectedSignals} sinal(is). O sentimento ficou com ${positive} positivo(s), ${neutral} neutro(s) e ${negative} crítico(s). A principal leitura é: ${mainInsight?.summary || currentWeek?.keyNarrative || "a conversa segue em monitoramento."}`
+      ? `Na semana ${selectedWeek}, a IA analisou ${selectedSignals} sinal(is). O sentimento ficou com ${positive} positivo(s), ${neutral} neutro(s) e ${negative} crítico(s). ${weekHasLowVolume ? "Como o volume da semana é baixo, a leitura deve ser usada com cautela. " : ""}A principal leitura é: ${mainInsight?.summary || currentWeek?.keyNarrative || "a conversa segue em monitoramento."}`
       : `Na semana ${selectedWeek}, a IA ainda não encontrou sinais suficientes. O Lumos está usando contexto histórico para manter a análise ativa.`;
 
     const actions = [
       weekOpportunity
         ? `Transformar o tema “${weekOpportunity.title}” em pauta de social/PR para a semana ${selectedWeek}, usando ${weekOpportunity.source} como evidência.`
         : `Criar uma pauta editorial de aquecimento para a semana ${selectedWeek}, usando nostalgia, retorno a Hogwarts e memória afetiva da franquia.`,
-      weekRisk
-        ? `Monitorar o risco “${weekRisk.title}” na semana ${selectedWeek}, porque pode influenciar comparação com os filmes e percepção de adaptação.`
-        : `Manter monitoramento de risco na semana ${selectedWeek}, principalmente em conversas sobre elenco, fidelidade aos livros e comparação com os filmes.`,
+      hasRealRisk
+        ? `Monitorar o risco “${weekRisk.title}” na semana ${selectedWeek}, porque pode influenciar percepção de adaptação, comparação com os filmes ou recepção do fandom.`
+        : `Sem risco crítico detectado na semana ${selectedWeek}. Manter monitoramento leve em conversas sobre elenco, fidelidade aos livros e comparação com os filmes.`,
       topSources
         ? `Priorizar leitura das fontes mais recorrentes da semana ${selectedWeek}: ${topSources}.`
         : `Recarregar o feed da semana ${selectedWeek} para capturar mais fontes antes de tomar decisões.`,
-      `Preparar um resumo executivo da semana ${selectedWeek} com: o que mudou, fontes principais, oportunidade de conteúdo e pontos de atenção.`
+      weekHasLowVolume
+        ? `Como a semana ${selectedWeek} tem baixo volume, evitar conclusões fortes e tratar a leitura como sinal preliminar.`
+        : `Preparar um resumo executivo da semana ${selectedWeek} com: o que mudou, fontes principais, oportunidade de conteúdo e pontos de atenção.`
     ];
 
-    return { historySummary, weekSummary, actions, topOpportunity: weekOpportunity, topRisk: weekRisk, positive, neutral, negative, selectedSignals };
+    return { historySummary, weekSummary, actions, topOpportunity: weekOpportunity, topRisk: weekRisk, hasRealRisk, weekHasLowVolume, positive, neutral, negative, selectedSignals };
   }, [snapshot, scopedItems, weeklyNarrativeSummary, currentWeek, selectedWeek]);
 
   async function updateIntelligence() {
@@ -527,7 +531,7 @@ export default function Page() {
           {activeView === "creators" && <section className="view active"><div className="head"><div><span className="eyebrow">Creators</span><h2>Perfis em alta</h2></div><p>Creators inferidos de dados conectados, principalmente YouTube.</p></div><table className="table"><thead><tr><th>Perfil</th><th>Plataforma</th><th>Fit</th><th>Score</th><th>Risco</th></tr></thead><tbody>{snapshot.creators.map((creator) => <tr key={creator.name}><td>{creator.name}</td><td>{creator.platform}</td><td>{creator.fit}</td><td>{creator.score}/100</td><td>{creator.risks.join(" ")}</td></tr>)}</tbody></table></section>}
           {activeView === "risks" && <section className="view active"><div className="head"><div><span className="eyebrow">Radar de riscos</span><h2>Pontos de atenção</h2></div><p>Riscos derivados das conversas e matérias monitoradas.</p></div><div className="riskgrid">{riskItems.map((item) => <RiskCard key={item.id} item={item} />)}</div></section>}
           {activeView === "opps" && <section className="view active"><div className="head"><div><span className="eyebrow">Oportunidades</span><h2>Onde surfar a conversa</h2></div><p>Itens com maior potencial de PR, social, creators e CRM.</p></div><div className="hero"><span className="eyebrow">Insight aplicável</span><h2>{weeklyNarrativeSummary.topInsight?.title || currentWeek?.keyNarrative}</h2><p>{weeklyNarrativeSummary.topInsight?.whyItMatters || currentWeek?.whatChanged}</p><div className="facts"><div><small>Semana</small><b>{currentWeek?.weekId}</b></div><div><small>Opportunity</small><b>{currentWeek?.opportunityScore}/100</b></div><div><small>Buzz</small><b>{currentWeek?.buzzScore}/100</b></div></div></div><div className="oppgrid">{opportunityItems.map((item) => <OpportunityCard key={item.id} item={item} />)}</div></section>}
-          {activeView === "assistant" && <section className="view active"><div className="head"><div><span className="eyebrow">AI Assistant</span><h2>Leitura executiva Lumos</h2></div><p>Resumo da semana, leitura histórica e próximos passos recomendados pela IA.</p></div><div className="assistant-grid"><div className="panel assistant-main"><div className="assistant-title"><Sparkles size={20} /><div><span className="eyebrow">Resumo da semana</span><h3>O que está acontecendo agora?</h3></div></div><p>{assistantReadout.weekSummary}</p>{weeklyFallbackActive && <p className="fallback-note">Esta semana não trouxe novos sinais suficientes, então o Lumos está usando os sinais mais recentes anteriores para manter o contexto.</p>}<div className="assistant-metrics"><div><small>Sinais</small><b>{assistantReadout.selectedSignals}</b></div><div><small>Positivo</small><b>{assistantReadout.positive}</b></div><div><small>Neutro</small><b>{assistantReadout.neutral}</b></div><div><small>Crítico</small><b>{assistantReadout.negative}</b></div></div></div><div className="panel"><div className="assistant-title"><BarChart3 size={20} /><div><span className="eyebrow">Histórico</span><h3>O que o histórico mostra?</h3></div></div><p>{assistantReadout.historySummary}</p></div></div><div className="grid2b assistant-section"><div className="panel"><div className="assistant-title"><Lightbulb size={20} /><div><span className="eyebrow">Recomendações</span><h3>O que podemos fazer?</h3></div></div><div className="assistant-actions">{assistantReadout.actions.map((action) => <div className="assistant-action" key={action}>{action}</div>)}</div></div><div className="panel"><div className="assistant-title"><FileWarning size={20} /><div><span className="eyebrow">Risco & oportunidade</span><h3>Onde prestar atenção?</h3></div></div><div className="assistant-focus"><div><small>Maior oportunidade</small><b>{assistantReadout.topOpportunity?.title || "Ainda sem oportunidade dominante"}</b><p>{assistantReadout.topOpportunity?.summary || "Recarregue o feed para capturar mais sinais."}</p></div><div><small>Principal risco</small><b>{assistantReadout.topRisk?.title || "Ainda sem risco dominante"}</b><p>{assistantReadout.topRisk?.sentimentReason || "Sem risco crítico detectado nesta janela."}</p></div></div></div></div></section>}
+          {activeView === "assistant" && <section className="view active"><div className="head"><div><span className="eyebrow">AI Assistant</span><h2>Leitura executiva Lumos</h2></div><p>Resumo da semana, leitura histórica e próximos passos recomendados pela IA.</p></div><div className="assistant-grid"><div className="panel assistant-main"><div className="assistant-title"><Sparkles size={20} /><div><span className="eyebrow">Resumo da semana</span><h3>O que está acontecendo agora?</h3></div></div><p>{assistantReadout.weekSummary}</p>{weeklyFallbackActive && <p className="fallback-note">Esta semana não trouxe novos sinais suficientes, então o Lumos está usando os sinais mais recentes anteriores para manter o contexto.</p>}<div className="assistant-metrics"><div><small>Sinais</small><b>{assistantReadout.selectedSignals}</b></div><div><small>Positivo</small><b>{assistantReadout.positive}</b></div><div><small>Neutro</small><b>{assistantReadout.neutral}</b></div><div><small>Crítico</small><b>{assistantReadout.negative}</b></div></div></div><div className="panel"><div className="assistant-title"><BarChart3 size={20} /><div><span className="eyebrow">Histórico</span><h3>O que o histórico mostra?</h3></div></div><p>{assistantReadout.historySummary}</p></div></div><div className="grid2b assistant-section"><div className="panel"><div className="assistant-title"><Lightbulb size={20} /><div><span className="eyebrow">Recomendações</span><h3>O que podemos fazer?</h3></div></div><div className="assistant-actions">{assistantReadout.actions.map((action) => <div className="assistant-action" key={action}>{action}</div>)}</div></div><div className="panel"><div className="assistant-title"><FileWarning size={20} /><div><span className="eyebrow">Risco & oportunidade</span><h3>Onde prestar atenção?</h3></div></div><div className="assistant-focus"><div><small>Maior oportunidade</small><b>{assistantReadout.topOpportunity?.title || "Ainda sem oportunidade dominante"}</b><p>{assistantReadout.topOpportunity?.summary || "Recarregue o feed para capturar mais sinais."}</p></div><div><small>Principal risco</small><b>{assistantReadout.hasRealRisk ? assistantReadout.topRisk?.title : "Sem risco crítico detectado nesta semana"}</b><p>{assistantReadout.hasRealRisk ? assistantReadout.topRisk?.sentimentReason : "O sinal da semana está mais positivo/neutro. Manter monitoramento leve em elenco, fidelidade aos livros e comparação com os filmes."}</p></div></div></div></div></section>}
         </div>
       </main>
 
