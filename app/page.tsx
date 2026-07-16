@@ -51,13 +51,8 @@ type NarrativeInsight = {
   opportunityScore: number;
 };
 
-const initialSnapshot = buildSnapshot(
-  seedItems,
-  TEASER_LAUNCH_DATE,
-  new Date().toISOString().slice(0, 10)
-);
-
-const CACHE_KEY = "lumos.v11.safe-page.snapshot";
+const initialSnapshot = buildSnapshot(seedItems, TEASER_LAUNCH_DATE, new Date().toISOString().slice(0, 10));
+const CACHE_KEY = "lumos.v12.safe-page.snapshot";
 const COVERAGE_DISPLAY_LIMIT = 35;
 const EVIDENCE_DISPLAY_LIMIT = 12;
 const NARRATIVE_DISPLAY_LIMIT = 5;
@@ -74,26 +69,15 @@ const navItems: { key: ViewKey; label: string; icon: React.ElementType }[] = [
 ];
 
 function ExternalAnchor({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
-  return React.createElement(
-    "a",
-    {
-      href,
-      target: "_blank",
-      rel: "noreferrer",
-      className
-    },
-    children
-  );
+  return React.createElement("a", { href, target: "_blank", rel: "noreferrer", className }, children);
 }
 
 function pct(part: number, total: number) {
-  if (!total) return 0;
-  return Math.round((part / total) * 100);
+  return total ? Math.round((part / total) * 100) : 0;
 }
 
 function average(items: IntelligenceItem[], field: "riskScore" | "opportunityScore" | "reach") {
-  if (!items.length) return 0;
-  return Math.round(items.reduce((sum, item) => sum + item[field], 0) / items.length);
+  return items.length ? Math.round(items.reduce((sum, item) => sum + item[field], 0) / items.length) : 0;
 }
 
 function weekNumber(weekId: string) {
@@ -214,7 +198,6 @@ function makeInsight(id: string, title: string, summary: string, whyItMatters: s
 
 function buildNarrativeInsights(items: IntelligenceItem[]): NarrativeInsight[] {
   const cleanItems = items.filter((item) => !isSearchBackfill(item)).filter((item) => isHarryPotterRelevant(item));
-
   const groups = [
     makeInsight(
       "nostalgia-official",
@@ -254,7 +237,6 @@ function buildNarrativeInsights(items: IntelligenceItem[]): NarrativeInsight[] {
   ].filter(Boolean) as NarrativeInsight[];
 
   if (groups.length) return groups;
-
   const fallback = makeInsight(
     "weekly-readout",
     "A IA consolidou os sinais disponíveis da semana",
@@ -262,7 +244,6 @@ function buildNarrativeInsights(items: IntelligenceItem[]): NarrativeInsight[] {
     "A recomendação é recarregar o feed e acompanhar fontes oficiais, imprensa e social listening.",
     cleanItems
   );
-
   return fallback ? [fallback] : [];
 }
 
@@ -411,18 +392,7 @@ export default function Page() {
   const platformData = useMemo(() => {
     const labels = ["official", "news", "trends", "youtube", "reddit", "x"] as const;
     return labels.map((kind) => ({
-      name:
-        kind === "official"
-          ? "Oficial"
-          : kind === "news"
-            ? "Imprensa"
-            : kind === "trends"
-              ? "Trends"
-              : kind === "youtube"
-                ? "YouTube"
-                : kind === "reddit"
-                  ? "Reddit"
-                  : "X",
+      name: kind === "official" ? "Oficial" : kind === "news" ? "Imprensa" : kind === "trends" ? "Trends" : kind === "youtube" ? "YouTube" : kind === "reddit" ? "Reddit" : "X",
       volume: scopedItems.filter((item) => item.sourceKind === kind).length
     }));
   }, [scopedItems]);
@@ -495,329 +465,67 @@ export default function Page() {
   return (
     <div className="app-shell">
       <aside className="side">
-        <div className="brand">
-          <div className="orb" />
-          <div>
-            <b>Lumos</b>
-            <span>FANDOM INTELLIGENCE</span>
-          </div>
-        </div>
-
+        <div className="brand"><div className="orb" /><div><b>Lumos</b><span>FANDOM INTELLIGENCE</span></div></div>
         <div className="navlabel">Semana atual</div>
-
         <nav>
           {navItems.map(({ key, label, icon: Icon }) => (
             <button key={key} className={`navitem ${activeView === key ? "active" : ""}`} onClick={() => setActiveView(key)}>
-              <Icon size={17} />
-              {label}
-              {key === "risks" && <span className="badge">{riskItems.length}</span>}
+              <Icon size={17} />{label}{key === "risks" && <span className="badge">{riskItems.length}</span>}
             </button>
           ))}
         </nav>
-
-        <div className="sidefoot">
-          <b>Fonte de dados:</b> Lumos API
-          <br />
-          Atualizado: <b>{new Date(snapshot.generatedAt).toLocaleString("pt-BR")}</b>
-          <br />
-          Cobertura: <b>BR · pt-BR</b>
-          <br />
-          <span>{lastUpdateMessage}</span>
-        </div>
+        <div className="sidefoot"><b>Fonte de dados:</b> Lumos API<br />Atualizado: <b>{new Date(snapshot.generatedAt).toLocaleString("pt-BR")}</b><br />Cobertura: <b>BR · pt-BR</b><br /><span>{lastUpdateMessage}</span></div>
       </aside>
 
       <main className="main">
         <header className="top">
-          <div className="title">
-            <h1>Harry Potter — Série HBO Max</h1>
-            <span>Weekly Intelligence · mercado brasileiro</span>
-          </div>
-
-          <div className="seg">
-            <button className={period === "week" ? "active" : ""} onClick={() => setPeriod("week")}>Semanal</button>
-            <button className={period === "all" ? "active" : ""} onClick={() => setPeriod("all")}>Histórico</button>
-          </div>
-
-          <select className="select-native" value={selectedWeek} onChange={(event) => setSelectedWeek(event.target.value)}>
-            {snapshot.weeks.map((week) => (
-              <option key={week.weekId} value={week.weekId}>{week.weekId} · {week.startDate}</option>
-            ))}
-          </select>
-
-          <button className="btn" onClick={updateIntelligence} disabled={loading}>
-            <RefreshCw size={15} />
-            {loading ? "Atualizando" : "Recarregar feed"}
-          </button>
-
+          <div className="title"><h1>Harry Potter — Série HBO Max</h1><span>Weekly Intelligence · mercado brasileiro</span></div>
+          <div className="seg"><button className={period === "week" ? "active" : ""} onClick={() => setPeriod("week")}>Semanal</button><button className={period === "all" ? "active" : ""} onClick={() => setPeriod("all")}>Histórico</button></div>
+          <select className="select-native" value={selectedWeek} onChange={(event) => setSelectedWeek(event.target.value)}>{snapshot.weeks.map((week) => <option key={week.weekId} value={week.weekId}>{week.weekId} · {week.startDate}</option>)}</select>
+          <button className="btn" onClick={updateIntelligence} disabled={loading}><RefreshCw size={15} />{loading ? "Atualizando" : "Recarregar feed"}</button>
           <button className="btn gold" onClick={() => exportFile("pdf")}>Relatório</button>
         </header>
 
         <div className="content">
           {activeView === "overview" && (
             <section className="view active">
-              <div className="head">
-                <div>
-                  <span className="eyebrow">Resumo executivo</span>
-                  <h2>Visão geral</h2>
-                </div>
-                <p>Consolidação semanal com matérias clicáveis, fontes, sentimento, risco e oportunidade.</p>
-              </div>
-
-              <div className="executive-readout">
-                <span className="tagline"><span className="dot" />Leitura executiva da semana</span>
-                <h3>{weeklyNarrativeSummary.topInsight?.title || "Monitoramento ativo de Harry Potter"}</h3>
-                <p>{weeklyNarrativeSummary.summary}</p>
-                {weeklyFallbackActive && <p className="fallback-note">Sem novas fontes exatamente em {selectedWeek}; exibindo os sinais mais recentes anteriores para manter contexto semanal.</p>}
-                <div className="readout-sources">
-                  {weeklyNarrativeSummary.topSources.slice(0, 5).map((source) => (
-                    <span key={source.source}>{source.source} · {source.count}</span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="kpis">
-                <div className="kpi"><small>Matérias / Sinais</small><strong>{scopedItems.length}</strong><span className="smallnote">janela selecionada</span></div>
-                <div className="kpi"><small>Sentimento positivo</small><strong>{pct(scopedItems.filter((item) => item.sentiment === "positive").length, scopedItems.length)}%</strong><span className="delta up">+ memória semanal</span></div>
-                <div className="kpi"><small>Risco médio</small><strong>{currentWeek?.riskScore || 0}<span>/100</span></strong><span className="smallnote">radar de fandom</span></div>
-                <div className="kpi"><small>Buzz score</small><strong>{currentWeek?.buzzScore || 0}<span>/100</span></strong><span className="smallnote">desde o teaser</span></div>
-              </div>
-
-              <div className="grid2">
-                <div className="panel">
-                  <h3>Radar de plataformas</h3>
-                  <div className="canvasbox">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={platformData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#202942" />
-                        <XAxis dataKey="name" stroke="#9ba3bb" />
-                        <YAxis stroke="#69718e" />
-                        <Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} />
-                        <Bar dataKey="volume" fill="#e7a94b" radius={[8, 8, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="panel">
-                  <h3>Narrativas dominantes</h3>
-                  <div className="list">
-                    {narrativeInsights.length ? narrativeInsights.slice(0, NARRATIVE_DISPLAY_LIMIT).map((insight) => (
-                      <button className="row row-button" key={insight.id} onClick={() => setActiveView("narratives")}>
-                        <div>
-                          <b>{insight.title}</b>
-                          <small>{insight.evidence.length} evidência(s) · fontes: {insight.sourceNames.join(", ")}</small>
-                        </div>
-                        <ExternalLink size={15} />
-                      </button>
-                    )) : <div className="empty">Sem narrativas suficientes nessa janela.</div>}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid2b">
-                <div className="panel">
-                  <h3>Balanço de sentimento</h3>
-                  <div className="canvasbox">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={sentimentData} dataKey="value" nameKey="name" innerRadius={65} outerRadius={100} paddingAngle={3}>
-                          {sentimentData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                        </Pie>
-                        <Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="panel">
-                  <h3>Buzz · histórico semanal</h3>
-                  <div className="canvasbox">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={snapshot.weeks}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#202942" />
-                        <XAxis dataKey="weekId" stroke="#9ba3bb" />
-                        <YAxis stroke="#69718e" />
-                        <Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} />
-                        <Area type="monotone" dataKey="buzzScore" stroke="#e7a94b" fill="rgba(231,169,75,.18)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
+              <div className="head"><div><span className="eyebrow">Resumo executivo</span><h2>Visão geral</h2></div><p>Consolidação semanal com matérias clicáveis, fontes, sentimento, risco e oportunidade.</p></div>
+              <div className="executive-readout"><span className="tagline"><span className="dot" />Leitura executiva da semana</span><h3>{weeklyNarrativeSummary.topInsight?.title || "Monitoramento ativo de Harry Potter"}</h3><p>{weeklyNarrativeSummary.summary}</p>{weeklyFallbackActive && <p className="fallback-note">Sem novas fontes exatamente em {selectedWeek}; exibindo os sinais mais recentes anteriores para manter contexto semanal.</p>}<div className="readout-sources">{weeklyNarrativeSummary.topSources.slice(0, 5).map((source) => <span key={source.source}>{source.source} · {source.count}</span>)}</div></div>
+              <div className="kpis"><div className="kpi"><small>Matérias / Sinais</small><strong>{scopedItems.length}</strong><span className="smallnote">janela selecionada</span></div><div className="kpi"><small>Sentimento positivo</small><strong>{pct(scopedItems.filter((item) => item.sentiment === "positive").length, scopedItems.length)}%</strong><span className="delta up">+ memória semanal</span></div><div className="kpi"><small>Risco médio</small><strong>{currentWeek?.riskScore || 0}<span>/100</span></strong><span className="smallnote">radar de fandom</span></div><div className="kpi"><small>Buzz score</small><strong>{currentWeek?.buzzScore || 0}<span>/100</span></strong><span className="smallnote">desde o teaser</span></div></div>
+              <div className="grid2"><div className="panel"><h3>Radar de plataformas</h3><div className="canvasbox"><ResponsiveContainer width="100%" height="100%"><BarChart data={platformData}><CartesianGrid strokeDasharray="3 3" stroke="#202942" /><XAxis dataKey="name" stroke="#9ba3bb" /><YAxis stroke="#69718e" /><Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} /><Bar dataKey="volume" fill="#e7a94b" radius={[8, 8, 0, 0]} /></BarChart></ResponsiveContainer></div></div><div className="panel"><h3>Narrativas dominantes</h3><div className="list">{narrativeInsights.length ? narrativeInsights.slice(0, NARRATIVE_DISPLAY_LIMIT).map((insight) => <button className="row row-button" key={insight.id} onClick={() => setActiveView("narratives")}><div><b>{insight.title}</b><small>{insight.evidence.length} evidência(s) · fontes: {insight.sourceNames.join(", ")}</small></div><ExternalLink size={15} /></button>) : <div className="empty">Sem narrativas suficientes nessa janela.</div>}</div></div></div>
+              <div className="grid2b"><div className="panel"><h3>Balanço de sentimento</h3><div className="canvasbox"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={sentimentData} dataKey="value" nameKey="name" innerRadius={65} outerRadius={100} paddingAngle={3}>{sentimentData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}</Pie><Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} /></PieChart></ResponsiveContainer></div></div><div className="panel"><h3>Buzz · histórico semanal</h3><div className="canvasbox"><ResponsiveContainer width="100%" height="100%"><AreaChart data={snapshot.weeks}><CartesianGrid strokeDasharray="3 3" stroke="#202942" /><XAxis dataKey="weekId" stroke="#9ba3bb" /><YAxis stroke="#69718e" /><Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} /><Area type="monotone" dataKey="buzzScore" stroke="#e7a94b" fill="rgba(231,169,75,.18)" /></AreaChart></ResponsiveContainer></div></div></div>
             </section>
           )}
 
           {activeView === "narratives" && (
             <section className="view active">
-              <div className="head">
-                <div>
-                  <span className="eyebrow">Resumo da semana</span>
-                  <h2>O que a IA encontrou</h2>
-                </div>
-                <p>Síntese executiva da semana selecionada, com fontes usadas pela IA e evidências clicáveis.</p>
-              </div>
-
-              <div className="narrative-summary">
-                <div>
-                  <span className="tagline"><span className="dot" />{selectedWeek} · {period === "all" ? "histórico acumulado" : "semana selecionada"}</span>
-                  <h3>Harry Potter está sendo falado?</h3>
-                  <p>{weeklyNarrativeSummary.summary}</p>
-                  {weeklyFallbackActive && <p className="fallback-note">Sem novas fontes exatamente em {selectedWeek}; exibindo os sinais mais recentes anteriores para manter contexto semanal.</p>}
-                </div>
-                <div className="narrative-scorecard">
-                  <div><small>Positivo</small><b>{weeklyNarrativeSummary.positive}</b></div>
-                  <div><small>Neutro</small><b>{weeklyNarrativeSummary.neutral}</b></div>
-                  <div><small>Crítico</small><b>{weeklyNarrativeSummary.negative}</b></div>
-                </div>
-              </div>
-
-              <div className="grid2b">
-                <div className="panel">
-                  <h3>Leitura da IA</h3>
-                  <div className="list">
-                    {narrativeInsights.length ? narrativeInsights.slice(0, NARRATIVE_DISPLAY_LIMIT).map((insight) => (
-                      <div className="insight-row" key={insight.id}>
-                        <div className="meta">
-                          <span className={`pill ${sentimentClass(insight.sentiment)}`}>{sentimentLabel(insight.sentiment)}</span>
-                          <span className="pill nos">Opp {insight.opportunityScore}</span>
-                          <span className="pill neg">Risk {insight.riskScore}</span>
-                        </div>
-                        <b>{insight.title}</b>
-                        <p>{insight.summary}</p>
-                        <small>Por que importa: {insight.whyItMatters}</small>
-                      </div>
-                    )) : <div className="empty">Sem leitura consolidada nesta semana.</div>}
-                  </div>
-                </div>
-
-                <div className="panel">
-                  <h3>Fontes usadas pela IA</h3>
-                  <div className="list">
-                    {weeklyNarrativeSummary.topSources.length ? weeklyNarrativeSummary.topSources.map((source) => (
-                      <div className="source-row" key={source.source}>
-                        <b>{source.source}</b>
-                        <span>{source.count} sinal(is)</span>
-                      </div>
-                    )) : <div className="empty">Sem fontes reais nesta semana.</div>}
-                  </div>
-                </div>
-              </div>
-
-              <div className="section-subhead">
-                <span className="eyebrow">Evidências</span>
-                <h3>Top {Math.min(scopedItems.length, EVIDENCE_DISPLAY_LIMIT)} itens que sustentam o resumo</h3>
-                <p>Filtramos o excesso e mostramos só os sinais mais relevantes da janela. Total disponível: {scopedItems.length}.</p>
-              </div>
-
-              <div className="cards">
-                {displayedEvidence.length ? displayedEvidence.map((item) => <EvidenceCard key={item.id} item={item} />) : <div className="empty" style={{ gridColumn: "1 / -1" }}>Sem evidências suficientes para esta semana.</div>}
-              </div>
+              <div className="head"><div><span className="eyebrow">Resumo da semana</span><h2>O que a IA encontrou</h2></div><p>Síntese executiva da semana selecionada, com fontes usadas pela IA e evidências clicáveis.</p></div>
+              <div className="narrative-summary"><div><span className="tagline"><span className="dot" />{selectedWeek} · {period === "all" ? "histórico acumulado" : "semana selecionada"}</span><h3>Harry Potter está sendo falado?</h3><p>{weeklyNarrativeSummary.summary}</p>{weeklyFallbackActive && <p className="fallback-note">Sem novas fontes exatamente em {selectedWeek}; exibindo os sinais mais recentes anteriores para manter contexto semanal.</p>}</div><div className="narrative-scorecard"><div><small>Positivo</small><b>{weeklyNarrativeSummary.positive}</b></div><div><small>Neutro</small><b>{weeklyNarrativeSummary.neutral}</b></div><div><small>Crítico</small><b>{weeklyNarrativeSummary.negative}</b></div></div></div>
+              <div className="grid2b"><div className="panel"><h3>Leitura da IA</h3><div className="list">{narrativeInsights.length ? narrativeInsights.slice(0, NARRATIVE_DISPLAY_LIMIT).map((insight) => <div className="insight-row" key={insight.id}><div className="meta"><span className={`pill ${sentimentClass(insight.sentiment)}`}>{sentimentLabel(insight.sentiment)}</span><span className="pill nos">Opp {insight.opportunityScore}</span><span className="pill neg">Risk {insight.riskScore}</span></div><b>{insight.title}</b><p>{insight.summary}</p><small>Por que importa: {insight.whyItMatters}</small></div>) : <div className="empty">Sem leitura consolidada nesta semana.</div>}</div></div><div className="panel"><h3>Fontes usadas pela IA</h3><div className="list">{weeklyNarrativeSummary.topSources.length ? weeklyNarrativeSummary.topSources.map((source) => <div className="source-row" key={source.source}><b>{source.source}</b><span>{source.count} sinal(is)</span></div>) : <div className="empty">Sem fontes reais nesta semana.</div>}</div></div></div>
+              <div className="section-subhead"><span className="eyebrow">Evidências</span><h3>Top {Math.min(scopedItems.length, EVIDENCE_DISPLAY_LIMIT)} itens que sustentam o resumo</h3><p>Filtramos o excesso e mostramos só os sinais mais relevantes da janela. Total disponível: {scopedItems.length}.</p></div>
+              <div className="cards">{displayedEvidence.length ? displayedEvidence.map((item) => <EvidenceCard key={item.id} item={item} />) : <div className="empty" style={{ gridColumn: "1 / -1" }}>Sem evidências suficientes para esta semana.</div>}</div>
             </section>
           )}
 
           {activeView === "coverage" && (
-            <section className="view active">
-              <div className="head">
-                <div>
-                  <span className="eyebrow">PR Listening</span>
-                  <h2>Cobertura & fontes</h2>
-                </div>
-                <p>Matérias, posts e fontes reais. Cada linha abre o link original.</p>
-              </div>
-
-              <div className="filters">
-                {(["all", "positive", "neutral", "negative", "official", "news", "youtube", "reddit", "x", "trends"] as CoverageFilter[]).map((filter) => (
-                  <button key={filter} className={`chip ${coverageFilter === filter ? "on" : ""}`} onClick={() => setCoverageFilter(filter)}>{filter}</button>
-                ))}
-              </div>
-
-              <div className="coverage-toolbar">
-                <span>Mostrando top {displayedCoverage.length} de {filteredCoverage.length} fonte(s) filtradas por relevância.</span>
-              </div>
-
-              <div className="coverage list">
-                {displayedCoverage.length ? displayedCoverage.map((item) => <CoverageRow key={item.id} item={item} />) : <div className="empty">Sem fontes de Harry Potter nesta semana. O Lumos agora filtra notícias fora do tema e pode mostrar contexto anterior quando a semana estiver vazia.</div>}
-              </div>
-            </section>
+            <section className="view active"><div className="head"><div><span className="eyebrow">PR Listening</span><h2>Cobertura & fontes</h2></div><p>Matérias, posts e fontes reais. Cada linha abre o link original.</p></div><div className="filters">{(["all", "positive", "neutral", "negative", "official", "news", "youtube", "reddit", "x", "trends"] as CoverageFilter[]).map((filter) => <button key={filter} className={`chip ${coverageFilter === filter ? "on" : ""}`} onClick={() => setCoverageFilter(filter)}>{filter}</button>)}</div><div className="coverage-toolbar"><span>Mostrando top {displayedCoverage.length} de {filteredCoverage.length} fonte(s) filtradas por relevância.</span></div><div className="coverage list">{displayedCoverage.length ? displayedCoverage.map((item) => <CoverageRow key={item.id} item={item} />) : <div className="empty">Sem fontes de Harry Potter nesta semana. O Lumos agora filtra notícias fora do tema e pode mostrar contexto anterior quando a semana estiver vazia.</div>}</div></section>
           )}
 
           {activeView === "sentiment" && (
-            <section className="view active">
-              <div className="head">
-                <div><span className="eyebrow">Sentimento</span><h2>Como a conversa está reagindo</h2></div>
-                <p>Percentual positivo/neutro/crítico baseado nos sinais disponíveis.</p>
-              </div>
-              <div className="kpis three">
-                {sentimentData.map((entry) => <div className="kpi" key={entry.name}><small>{entry.name}</small><strong>{pct(entry.value, scopedItems.length)}%</strong><span className="smallnote">{entry.value} sinais</span></div>)}
-              </div>
-              <div className="panel">
-                <h3>Sentimento por semana</h3>
-                <div className="canvasbox">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={snapshot.weeks.slice(-12)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#202942" />
-                      <XAxis dataKey="weekId" stroke="#9ba3bb" />
-                      <YAxis stroke="#69718e" />
-                      <Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} />
-                      <Bar dataKey="positive" stackId="a" fill="#63c08c" />
-                      <Bar dataKey="neutral" stackId="a" fill="#8a90a6" />
-                      <Bar dataKey="negative" stackId="a" fill="#da6e6e" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </section>
+            <section className="view active"><div className="head"><div><span className="eyebrow">Sentimento</span><h2>Como a conversa está reagindo</h2></div><p>Percentual positivo/neutro/crítico baseado nos sinais disponíveis.</p></div><div className="kpis three">{sentimentData.map((entry) => <div className="kpi" key={entry.name}><small>{entry.name}</small><strong>{pct(entry.value, scopedItems.length)}%</strong><span className="smallnote">{entry.value} sinais</span></div>)}</div><div className="panel"><h3>Sentimento por semana</h3><div className="canvasbox"><ResponsiveContainer width="100%" height="100%"><BarChart data={snapshot.weeks.slice(-12)}><CartesianGrid strokeDasharray="3 3" stroke="#202942" /><XAxis dataKey="weekId" stroke="#9ba3bb" /><YAxis stroke="#69718e" /><Tooltip contentStyle={{ background: "#141b2e", border: "1px solid #28324f", color: "#efe6d3" }} /><Bar dataKey="positive" stackId="a" fill="#63c08c" /><Bar dataKey="neutral" stackId="a" fill="#8a90a6" /><Bar dataKey="negative" stackId="a" fill="#da6e6e" /></BarChart></ResponsiveContainer></div></div></section>
           )}
 
           {activeView === "creators" && (
-            <section className="view active">
-              <div className="head">
-                <div><span className="eyebrow">Creators</span><h2>Perfis em alta</h2></div>
-                <p>Creators inferidos de dados conectados, principalmente YouTube.</p>
-              </div>
-              <table className="table">
-                <thead><tr><th>Perfil</th><th>Plataforma</th><th>Fit</th><th>Score</th><th>Risco</th></tr></thead>
-                <tbody>
-                  {snapshot.creators.map((creator) => <tr key={creator.name}><td>{creator.name}</td><td>{creator.platform}</td><td>{creator.fit}</td><td>{creator.score}/100</td><td>{creator.risks.join(" ")}</td></tr>)}
-                </tbody>
-              </table>
-            </section>
+            <section className="view active"><div className="head"><div><span className="eyebrow">Creators</span><h2>Perfis em alta</h2></div><p>Creators inferidos de dados conectados, principalmente YouTube.</p></div><table className="table"><thead><tr><th>Perfil</th><th>Plataforma</th><th>Fit</th><th>Score</th><th>Risco</th></tr></thead><tbody>{snapshot.creators.map((creator) => <tr key={creator.name}><td>{creator.name}</td><td>{creator.platform}</td><td>{creator.fit}</td><td>{creator.score}/100</td><td>{creator.risks.join(" ")}</td></tr>)}</tbody></table></section>
           )}
 
-          {activeView === "risks" && (
-            <section className="view active">
-              <div className="head"><div><span className="eyebrow">Radar de riscos</span><h2>Pontos de atenção</h2></div><p>Riscos derivados das conversas e matérias monitoradas.</p></div>
-              <div className="riskgrid">{riskItems.map((item) => <RiskCard key={item.id} item={item} />)}</div>
-            </section>
-          )}
-
-          {activeView === "opps" && (
-            <section className="view active">
-              <div className="head"><div><span className="eyebrow">Oportunidades</span><h2>Onde surfar a conversa</h2></div><p>Itens com maior potencial de PR, social, creators e CRM.</p></div>
-              <div className="hero">
-                <span className="eyebrow">Insight aplicável</span>
-                <h2>{weeklyNarrativeSummary.topInsight?.title || currentWeek?.keyNarrative}</h2>
-                <p>{weeklyNarrativeSummary.topInsight?.whyItMatters || currentWeek?.whatChanged}</p>
-                <div className="facts"><div><small>Semana</small><b>{currentWeek?.weekId}</b></div><div><small>Opportunity</small><b>{currentWeek?.opportunityScore}/100</b></div><div><small>Buzz</small><b>{currentWeek?.buzzScore}/100</b></div></div>
-              </div>
-              <div className="oppgrid">{opportunityItems.map((item) => <OpportunityCard key={item.id} item={item} />)}</div>
-            </section>
-          )}
-
-          {activeView === "assistant" && (
-            <section className="view active">
-              <div className="head"><div><span className="eyebrow">AI Assistant</span><h2>Leitura executiva</h2></div><p>Resposta contextual baseada na semana selecionada.</p></div>
-              <div className="panel assistant-box"><Search size={20} /><p><b>Leitura Lumos:</b> {weeklyNarrativeSummary.summary} Próximo passo: abrir as evidências da aba Narrativas e priorizar as fontes com maior recorrência para briefing de PR/social.</p></div>
-            </section>
-          )}
+          {activeView === "risks" && <section className="view active"><div className="head"><div><span className="eyebrow">Radar de riscos</span><h2>Pontos de atenção</h2></div><p>Riscos derivados das conversas e matérias monitoradas.</p></div><div className="riskgrid">{riskItems.map((item) => <RiskCard key={item.id} item={item} />)}</div></section>}
+          {activeView === "opps" && <section className="view active"><div className="head"><div><span className="eyebrow">Oportunidades</span><h2>Onde surfar a conversa</h2></div><p>Itens com maior potencial de PR, social, creators e CRM.</p></div><div className="hero"><span className="eyebrow">Insight aplicável</span><h2>{weeklyNarrativeSummary.topInsight?.title || currentWeek?.keyNarrative}</h2><p>{weeklyNarrativeSummary.topInsight?.whyItMatters || currentWeek?.whatChanged}</p><div className="facts"><div><small>Semana</small><b>{currentWeek?.weekId}</b></div><div><small>Opportunity</small><b>{currentWeek?.opportunityScore}/100</b></div><div><small>Buzz</small><b>{currentWeek?.buzzScore}/100</b></div></div></div><div className="oppgrid">{opportunityItems.map((item) => <OpportunityCard key={item.id} item={item} />)}</div></section>}
+          {activeView === "assistant" && <section className="view active"><div className="head"><div><span className="eyebrow">AI Assistant</span><h2>Leitura executiva</h2></div><p>Resposta contextual baseada na semana selecionada.</p></div><div className="panel assistant-box"><Search size={20} /><p><b>Leitura Lumos:</b> {weeklyNarrativeSummary.summary} Próximo passo: abrir as evidências da aba Narrativas e priorizar as fontes com maior recorrência para briefing de PR/social.</p></div></section>}
         </div>
       </main>
 
-      <div className="floating-exports">
-        <button onClick={() => exportFile("csv")}><Download size={14} />CSV</button>
-        <button onClick={() => exportFile("ppt")}><Download size={14} />PPT</button>
-      </div>
-
+      <div className="floating-exports"><button onClick={() => exportFile("csv")}><Download size={14} />CSV</button><button onClick={() => exportFile("ppt")}><Download size={14} />PPT</button></div>
       <Toaster richColors position="bottom-right" />
     </div>
   );
