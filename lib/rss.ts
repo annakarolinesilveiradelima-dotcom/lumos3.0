@@ -1,4 +1,5 @@
-import { IntelligenceItem } from "@/lib/types";import { IntelligenceItem } from "@/lib/types "@/lib/analysis";
+import { IntelligenceItem } from "@/lib/types";
+import { classifySentiment } from "@/lib/analysis";
 import { getWeekId } from "@/lib/dates";
 import { cleanText, host, uid } from "@/lib/utils";
 
@@ -35,8 +36,14 @@ const PRIORITY_SITES = [
 
 function rssUrl(query: string, from: string, to: string) {
   const q = encodeURIComponent(`${query} after:${from} before:${to}`);
-
   return `${GOOGLE_NEWS_BASE}?q=${q}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+}
+
+function normalizeText(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function decodeXml(value: string) {
@@ -54,10 +61,8 @@ function decodeXml(value: string) {
 }
 
 function extractTag(xml: string, tag: string) {
-  const match = xml.match(
-    new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i")
-  );
-
+  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const match = xml.match(regex);
   return match ? decodeXml(match[1]) : "";
 }
 
@@ -77,13 +82,6 @@ function extractSource(itemXml: string, fallbackUrl: string) {
     sourceUrl: fallbackUrl,
     sourceName: host(fallbackUrl)
   };
-}
-
-function normalizeText(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function isHarryPotterRelevant(
@@ -125,7 +123,6 @@ function isHarryPotterRelevant(
 
 function classifyTags(title: string, summary: string, query: string) {
   const text = normalizeText(`${title} ${summary} ${query}`);
-
   const tags = new Set<string>(["news", "brasil"]);
 
   if (text.includes("teaser") || text.includes("trailer")) {
@@ -166,6 +163,16 @@ function classifyTags(title: string, summary: string, query: string) {
   }
 
   return [...tags];
+}
+
+function splitItems(xml: string) {
+  return xml
+    .split("<item>")
+    .slice(1)
+    .map((part) => {
+      const content = part.split("</item>")[0];
+      return `<item>${content}</item>`;
+    });
 }
 
 function buildItem(itemXml: string, query: string): IntelligenceItem | null {
@@ -260,16 +267,9 @@ async function fetchQuery(
     }
 
     const xml = await res.text();
+    const itemXmlList = splitItems(xml);
 
-    const itemMatches = xml
-      .split("<item>")
-      .slice(1)
-      .map((part) => {
-        const content = part.split("</item>")[0];
-        return `<item>${content}</item>`;
-      });
-
-    return itemMatches
+    return itemXmlList
       .map((itemXml) => buildItem(itemXml, query))
       .filter(Boolean)
       .slice(0, 18) as IntelligenceItem[];
