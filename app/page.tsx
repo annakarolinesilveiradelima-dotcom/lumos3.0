@@ -425,6 +425,50 @@ export default function Page() {
       .slice(0, 8);
   }, [snapshot.items]);
 
+  const assistantReadout = useMemo(() => {
+    const totalWeeks = snapshot.weeks.length;
+    const totalSignals = snapshot.items.filter((item) => !isSearchBackfill(item)).filter((item) => isHarryPotterRelevant(item)).length;
+    const selectedSignals = scopedItems.length;
+    const positive = scopedItems.filter((item) => item.sentiment === "positive").length;
+    const neutral = scopedItems.filter((item) => item.sentiment === "neutral").length;
+    const negative = scopedItems.filter((item) => item.sentiment === "negative").length;
+    const topSources = weeklyNarrativeSummary.topSources.slice(0, 4).map((source) => source.source).join(", ");
+    const topOpportunity = opportunityItems[0];
+    const topRisk = riskItems[0];
+    const mainInsight = weeklyNarrativeSummary.topInsight;
+
+    const historySummary = `Desde o teaser, o Lumos consolidou ${totalSignals} sinais relevantes em ${totalWeeks} semanas. A leitura histórica mostra uma conversa sustentada por nostalgia, fontes oficiais, cobertura editorial local e comparação constante com o legado dos filmes.`;
+
+    const weekSummary = selectedSignals
+      ? `Na semana selecionada, a IA analisou ${selectedSignals} sinal(is). O sentimento ficou com ${positive} positivo(s), ${neutral} neutro(s) e ${negative} crítico(s). A principal leitura é: ${mainInsight?.summary || currentWeek?.keyNarrative || "a conversa segue em monitoramento."}`
+      : "Na semana selecionada, a IA ainda não encontrou sinais suficientes. O Lumos está usando contexto histórico para manter a análise ativa.";
+
+    const actions = [
+      topOpportunity
+        ? `Transformar o tema “${topOpportunity.title}” em pauta de social/PR, usando ${topOpportunity.source} como evidência.`
+        : "Criar uma pauta editorial de aquecimento usando nostalgia, retorno a Hogwarts e memória afetiva da franquia.",
+      topRisk
+        ? `Monitorar o risco “${topRisk.title}”, porque pode influenciar comparação com os filmes e percepção de adaptação.`
+        : "Manter monitoramento de risco em conversas sobre elenco, fidelidade aos livros e comparação com os filmes.",
+      topSources
+        ? `Priorizar leitura das fontes mais recorrentes da semana: ${topSources}.`
+        : "Recarregar o feed para capturar mais fontes antes de tomar decisões.",
+      "Preparar um resumo executivo semanal com: o que mudou, fontes principais, oportunidade de conteúdo e pontos de atenção."
+    ];
+
+    return {
+      historySummary,
+      weekSummary,
+      actions,
+      topOpportunity,
+      topRisk,
+      positive,
+      neutral,
+      negative,
+      selectedSignals
+    };
+  }, [snapshot, scopedItems, weeklyNarrativeSummary, currentWeek, opportunityItems, riskItems]);
+
   async function updateIntelligence() {
     setLoading(true);
     try {
@@ -521,7 +565,50 @@ export default function Page() {
 
           {activeView === "risks" && <section className="view active"><div className="head"><div><span className="eyebrow">Radar de riscos</span><h2>Pontos de atenção</h2></div><p>Riscos derivados das conversas e matérias monitoradas.</p></div><div className="riskgrid">{riskItems.map((item) => <RiskCard key={item.id} item={item} />)}</div></section>}
           {activeView === "opps" && <section className="view active"><div className="head"><div><span className="eyebrow">Oportunidades</span><h2>Onde surfar a conversa</h2></div><p>Itens com maior potencial de PR, social, creators e CRM.</p></div><div className="hero"><span className="eyebrow">Insight aplicável</span><h2>{weeklyNarrativeSummary.topInsight?.title || currentWeek?.keyNarrative}</h2><p>{weeklyNarrativeSummary.topInsight?.whyItMatters || currentWeek?.whatChanged}</p><div className="facts"><div><small>Semana</small><b>{currentWeek?.weekId}</b></div><div><small>Opportunity</small><b>{currentWeek?.opportunityScore}/100</b></div><div><small>Buzz</small><b>{currentWeek?.buzzScore}/100</b></div></div></div><div className="oppgrid">{opportunityItems.map((item) => <OpportunityCard key={item.id} item={item} />)}</div></section>}
-          {activeView === "assistant" && <section className="view active"><div className="head"><div><span className="eyebrow">AI Assistant</span><h2>Leitura executiva</h2></div><p>Resposta contextual baseada na semana selecionada.</p></div><div className="panel assistant-box"><Search size={20} /><p><b>Leitura Lumos:</b> {weeklyNarrativeSummary.summary} Próximo passo: abrir as evidências da aba Narrativas e priorizar as fontes com maior recorrência para briefing de PR/social.</p></div></section>}
+          {activeView === "assistant" && (
+            <section className="view active">
+              <div className="head">
+                <div><span className="eyebrow">AI Assistant</span><h2>Leitura executiva Lumos</h2></div>
+                <p>Resumo da semana, leitura histórica e próximos passos recomendados pela IA.</p>
+              </div>
+
+              <div className="assistant-grid">
+                <div className="panel assistant-main">
+                  <div className="assistant-title"><Sparkles size={20} /><div><span className="eyebrow">Resumo da semana</span><h3>O que está acontecendo agora?</h3></div></div>
+                  <p>{assistantReadout.weekSummary}</p>
+                  {weeklyFallbackActive && <p className="fallback-note">Esta semana não trouxe novos sinais suficientes, então o Lumos está usando os sinais mais recentes anteriores para manter o contexto.</p>}
+                  <div className="assistant-metrics">
+                    <div><small>Sinais</small><b>{assistantReadout.selectedSignals}</b></div>
+                    <div><small>Positivo</small><b>{assistantReadout.positive}</b></div>
+                    <div><small>Neutro</small><b>{assistantReadout.neutral}</b></div>
+                    <div><small>Crítico</small><b>{assistantReadout.negative}</b></div>
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div className="assistant-title"><BarChart3 size={20} /><div><span className="eyebrow">Histórico</span><h3>O que o histórico mostra?</h3></div></div>
+                  <p>{assistantReadout.historySummary}</p>
+                </div>
+              </div>
+
+              <div className="grid2b assistant-section">
+                <div className="panel">
+                  <div className="assistant-title"><Lightbulb size={20} /><div><span className="eyebrow">Recomendações</span><h3>O que podemos fazer?</h3></div></div>
+                  <div className="assistant-actions">
+                    {assistantReadout.actions.map((action) => <div className="assistant-action" key={action}>{action}</div>)}
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div className="assistant-title"><FileWarning size={20} /><div><span className="eyebrow">Risco & oportunidade</span><h3>Onde prestar atenção?</h3></div></div>
+                  <div className="assistant-focus">
+                    <div><small>Maior oportunidade</small><b>{assistantReadout.topOpportunity?.title || "Ainda sem oportunidade dominante"}</b><p>{assistantReadout.topOpportunity?.summary || "Recarregue o feed para capturar mais sinais."}</p></div>
+                    <div><small>Principal risco</small><b>{assistantReadout.topRisk?.title || "Ainda sem risco dominante"}</b><p>{assistantReadout.topRisk?.sentimentReason || "Sem risco crítico detectado nesta janela."}</p></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       </main>
 
